@@ -1,0 +1,48 @@
+# OS & IDE (Глобальные)
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+*.swp
+*~
+
+# Секреты
+# Firebase
+**/google-services.json
+**/service_account_key.json
+
+# Переменные окружения бэкенда
+**/.env
+**/.env.*
+!.env.example
+
+# Ключи подписи Android
+*.jks
+*.keystore
+local.properties
+
+# Базы данных (Локальные)
+*.db
+*.sqlite
+*.sqlite3
+
+# Логи и кэши
+.logs/
+.pids/
+*.log
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Android/Gradle
+**/build/
+**/.gradle/
+**/.cxx/
+**/captures/
+.externalNativeBuild/
