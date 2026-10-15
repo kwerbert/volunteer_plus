@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="organizations_list">
+        <item>Выберите основную организацию</item>
+        <item>Эко-Движение</item>
+        <item>Дети-Герои</item>
+        <item>Помощь пожилым</item>
+        <item>Защита животных</item>
+    </string-array>
+</resources>

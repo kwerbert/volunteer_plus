@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Волонтер+</string>
+    <string name="tab_subscriptions">Мои подписки</string>
+    <string name="tab_explore">Изучить</string>
+    <string name="empty_subscriptions">У вас пока нет подписок на организации. Подпишитесь на организации, чтобы видеть персонализированные мероприятия</string>
+    <string name="hours_format">%d часов</string>
+</resources>

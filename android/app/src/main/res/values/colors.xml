@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#6200EE</color>
+    <color name="primary_dark">#3700B3</color>
+    <color name="secondary">#03DAC5</color>
+    <color name="background">#FFFFFF</color>
+    <color name="white">#FFFFFF</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="error">#B00020</color>
+    <color name="success">#4CAF50</color>
+    <color name="warning">#FFC107</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="on_secondary">#000000</color>
+    <color name="on_background">#000000</color>
+    <color name="on_surface">#000000</color>
+    <color name="on_error">#FFFFFF</color>
+    <color name="search_border">#E0E0E0</color>
+    <!-- ИСПРАВЛЕНО: был #88FF68 (светло-зелёный на белом = невидимо) -->
+    <color name="search_hint">#757575</color>
+    <!-- ДОБАВЛЕНО: цвет текста запроса в SearchView -->
+    <color name="search_text">#212121</color>
+    <color name="nav_icon_active">#6200EE</color>
+    <color name="nav_icon_inactive">#757575</color>
+    <color name="nav_text_active">#6200EE</color>
+    <color name="nav_text_inactive">#757575</color>
+</resources>

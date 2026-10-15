@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_bottom_sheet_rounded_top"
+    android:padding="24dp">
+
+    <!-- Индикатор для BottomSheet -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:background="@color/search_border"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Заголовок мероприятия -->
+    <TextView
+        android:id="@+id/tv_event_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Уборка парка Горького"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tv_event_date"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="15 мая 2026 • 10:00-14:00"
+        android:textColor="@color/secondary"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Блок организации -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/card_organization"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:cardElevation="1dp"
+        style="@style/CardStyle.White">
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="16dp">
+
+            <com.google.android.material.imageview.ShapeableImageView
+                android:id="@+id/iv_org_avatar"
+                android:layout_width="45dp"
+                android:layout_height="45dp"
+                android:src="@drawable/ic_profile"
+                app:shapeAppearanceOverlay="@style/ShapeAppearanceOverlay.App.Circle"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/tv_org_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="Эко-Движение"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:layout_marginStart="16dp"
+                app:layout_constraintEnd_toStartOf="@id/btn_org_subscribe"
+                app:layout_constraintStart_toEndOf="@id/iv_org_avatar"
+                app:layout_constraintTop_toTopOf="@id/iv_org_avatar" />
+
+            <TextView
+                android:id="@+id/tv_org_rating"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="★4.9 на основе 24 отзывов"
+                android:textSize="10sp"
+                app:layout_constraintStart_toStartOf="@id/tv_org_name"
+                app:layout_constraintTop_toBottomOf="@id/tv_org_name" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_org_subscribe"
+                android:layout_width="wrap_content"
+                android:layout_height="48dp"
+                android:minWidth="88dp"
+                android:text="Подписаться"
+                android:textSize="14sp"
+                style="@style/Widget.Material3.Button.TextButton"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_chat_org"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:text="Написать организатору"
+                android:layout_marginTop="8dp"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/tv_org_rating" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Роли (пример) -->
+    <TextView
+        android:id="@+id/tv_roles_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Доступные роли"
+        android:textStyle="bold"
+        android:textSize="18sp"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:id="@+id/roles_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp"
+        android:clipChildren="false">
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            app:cardElevation="1dp"
+            style="@style/CardStyle.White">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Волонтёр"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="4 часа" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            app:cardElevation="1dp"
+            style="@style/CardStyle.White">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Фотограф"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="3 часа" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+    </LinearLayout>
+
+    <!-- Кнопка регистрации на мероприятие -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_register"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Зарегистрироваться"
+        android:layout_marginTop="8dp"
+        style="@style/ButtonStyle.Large" />
+
+    <!-- Кнопка для организатора: показать QR-код -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_show_qr"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Показать QR-код"
+        android:visibility="gone"
+        style="@style/Widget.Material3.Button.OutlinedButton" />
+
+    <!-- Кнопка для волонтёра: отметиться через сканер -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_check_in"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Отметиться"
+        style="@style/Widget.Material3.Button" />
+
+</LinearLayout>

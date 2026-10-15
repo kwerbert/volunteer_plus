@@ -1,0 +1,25 @@
+app/google-services.json
+app/services/notification_service/firebase/*.json
+!app/services/notification_service/firebase/*.example.json
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+!.env.example
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Logs
+.logs/
+.pids/
