@@ -24,7 +24,8 @@ import dagger.hilt.android.AndroidEntryPoint
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-@AndroidEntryPoint
+@AndroidEntryPoint  
+@androidx.annotation.OptIn(ExperimentalGetImage::class)
 class QrScannerActivity : AppCompatActivity() {
 
     private lateinit var previewView: PreviewView

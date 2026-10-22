@@ -58,6 +58,7 @@ app.add_middleware(
 
 # Include Router
 app.include_router(router)
+app.include_router(internal_router)
 
 from app.services.chat_service.api.websocket_router import websocket_endpoint as ws_endpoint
 

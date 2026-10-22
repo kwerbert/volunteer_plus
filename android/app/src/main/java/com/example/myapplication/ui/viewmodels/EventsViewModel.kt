@@ -92,16 +92,16 @@ class EventsViewModel @Inject constructor(
     }
 
     private fun filterAndEmit() {
-        val now = LocalDateTime.now()
+        val now = java.time.OffsetDateTime.now()
         val upcoming = allEvents.filter { event ->
             try {
-                LocalDateTime.parse(event.startTime, formatter).isAfter(now)
+                java.time.OffsetDateTime.parse(event.startTime).isAfter(now)
             } catch (e: Exception) { false }
         }.sortedBy { it.startTime }
 
         val past = allEvents.filter { event ->
             try {
-                LocalDateTime.parse(event.startTime, formatter).isBefore(now)
+                java.time.OffsetDateTime.parse(event.startTime).isBefore(now)
             } catch (e: Exception) { false }
         }.sortedByDescending { it.startTime }
 

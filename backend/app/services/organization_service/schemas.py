@@ -10,7 +10,7 @@ class OrganizationBase(BaseModel):
 
 
 class OrganizationCreate(OrganizationBase):
-    pass
+    owner_user_id: Optional[int] = None
 
 
 class OrganizationResponse(OrganizationBase):
@@ -18,6 +18,7 @@ class OrganizationResponse(OrganizationBase):
     is_verified: bool = False
     rating: float = 0.0
     is_active: bool = True
+    owner_user_id: Optional[int] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

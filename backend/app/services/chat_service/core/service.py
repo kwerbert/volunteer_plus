@@ -92,11 +92,19 @@ class ChatService:
             event_id=event_id,
             organization_id=organization_id
         )
-        await self.repo.add_member(chat.id, creator_id, role="admin")
-        for user_id in participant_ids:
-            if user_id != creator_id:
-                await self.repo.add_member(chat.id, user_id, role="member")
-
+        # Роли различаются по типу чата:
+        # ORGANIZER — создатель (волонтёр) = member, владелец организации = admin
+        # остальные — создатель = admin, остальные = member
+        if chat_type == ChatTypeEnum.ORGANIZER:
+            await self.repo.add_member(chat.id, creator_id, role="member")
+            for user_id in participant_ids:
+                if user_id != creator_id:
+                    await self.repo.add_member(chat.id, user_id, role="admin")
+        else:
+            await self.repo.add_member(chat.id, creator_id, role="admin")
+            for user_id in participant_ids:
+                if user_id != creator_id:
+                    await self.repo.add_member(chat.id, user_id, role="member")
         return await self._build_chat_response(chat, creator_id)
 
     async def get_user_chats(

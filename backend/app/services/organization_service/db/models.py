@@ -12,6 +12,7 @@ class Organization(Base):
     is_verified = Column(Boolean, default=False, nullable=False)
     rating = Column(Float, default=0.0, nullable=False)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    owner_user_id = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 

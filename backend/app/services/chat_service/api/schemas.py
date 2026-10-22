@@ -4,10 +4,14 @@ from typing import Optional, List
 from enum import Enum
 from datetime import datetime, timezone
 
+from app.utils.notifications_enums import NotificationType, Priority
+
+
 class ChatTypeEnum(str, Enum):
     """Типы чатов"""
-    EVENT = "event"  # Групповой чат мероприятия
-    ORGANIZER = "organizer"  # Личный чат с организатором/представителем организации
+    EVENT = "event"
+    ORGANIZER = "organizer"
+
 
 class MessageTypeEnum(str, Enum):
     """Типы сообщений"""
@@ -116,12 +120,19 @@ class EventVerifyResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 class NotificationRequest(BaseModel):
-    """Запрос отправки уведомления (в Notification Service)"""
+    """Запрос отправки уведомления (в Notification Service).
+
+    Зеркально повторяет notification_service.api.schemas.CreateNotificationRequest
+    по составу полей. Тип `notification_type` и `priority` — общие enum'ы,
+    поэтому рассинхрон будет пойман на этапе `model_dump(mode="json")`,
+    а не после HTTP-вызова (как было с 422).
+    """
     user_id: int
     title: str
     body: str
+    notification_type: NotificationType = NotificationType.CHAT
+    priority: Priority = Priority.NORMAL
     data: Optional[dict] = None
-    priority: str = "normal"
     model_config = ConfigDict(from_attributes=True)
 
 # === Error Schema ===

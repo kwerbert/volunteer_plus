@@ -54,6 +54,7 @@ class FeedRepository(
                                 descriptionPreview = event.descriptionPreview,
                                 locationLat = event.locationLat,
                                 locationLon = event.locationLon,
+                                distanceKm = event.distanceKm,
                                 cachedAt = System.currentTimeMillis()
                             )
                         }

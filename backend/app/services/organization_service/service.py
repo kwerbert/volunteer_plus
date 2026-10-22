@@ -21,6 +21,7 @@ class OrganizationService:
             name=data.name,
             description=data.description,
             category_id=data.category_id,
+            owner_user_id=data.owner_user_id,
             is_verified=False,
             rating=0.0,
             is_active=True

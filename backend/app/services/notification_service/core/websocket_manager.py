@@ -1,6 +1,7 @@
 from fastapi import WebSocket
 from typing import Dict, List
 import asyncio
+from functools import lru_cache
 from app.services.notification_service.config import settings
 
 
@@ -71,3 +72,13 @@ class WebSocketManager:
                 await conn.send_json({"type": "heartbeat", "timestamp": asyncio.get_event_loop().time()})
             except:
                 pass  # Игнорируем ошибки, подключение закроется само
+
+@lru_cache()
+def get_ws_manager() -> "WebSocketManager":
+    """
+    Singleton WebSocketManager для всего процесса.
+    Должен использоваться через Depends(get_ws_manager) во всех эндпоинтах,
+    иначе новые экземпляры не видят активных подключений друг друга
+    (и WebSocket-доставка уведомлений никогда не сработает).
+    """
+    return WebSocketManager()

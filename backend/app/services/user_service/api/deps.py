@@ -1,4 +1,3 @@
-"""Зависимости для User Service"""
 from typing import Optional, AsyncGenerator
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -14,13 +13,11 @@ from app.services.user_service.core.service import UserService
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
 
-
 # === Database ===
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Зависимость для получения сессии БД"""
     async for session in get_db_session():
         yield session
-
 
 # === User Authentication (JWT) ===
 async def get_current_user_id(
@@ -34,7 +31,6 @@ async def get_current_user_id(
             detail="Требуется аутентификация",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
     token = credentials.credentials
     try:
         payload = jwt.decode(
@@ -65,7 +61,6 @@ async def get_current_user_id(
             detail="Невалидный токен",
         )
 
-
 # === Service-to-Service Authentication ===
 async def verify_service_key(
         x_service_key: Optional[str] = Header(None, alias="X-Service-Key")
@@ -84,7 +79,6 @@ async def verify_service_key(
         )
     return True
 
-
 # === Проверка владения ресурсом ===
 async def check_user_ownership(
         user_id: int,
@@ -92,13 +86,12 @@ async def check_user_ownership(
 ) -> bool:
     """Проверяет что пользователь имеет доступ к ресурсу"""
     if user_id != current_user_id:
-        # TODO: Добавить проверку на admin роль
+        # TOD0: Добавить проверку на admin роль
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Доступ запрещён"
         )
     return True
-
 
 # === Зависимости для сервисов ===
 async def get_user_service(

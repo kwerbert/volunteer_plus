@@ -1,6 +1,6 @@
 from app.services.event_service.core.chat_client import ChatServiceClient
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, func as sqlfunc
 from datetime import datetime, timezone
 from typing import Optional, List
 import uuid
@@ -126,6 +126,46 @@ class EventService:
         await self.db.commit()
         await self.db.refresh(part)
         return part
+
+    async def get_popular_events(
+            self,
+            exclude_org_ids: Optional[List[int]] = None,
+            limit: int = 20,
+            sort: Optional[str] = None,
+    ) -> List[Event]:
+        """
+        Популярные мероприятия.
+        - exclude_org_ids: исключить события указанных организаций.
+        - sort='popularity': сортировка по числу регистраций (по убыванию).
+          Иначе — по ближайшей дате начала.
+        """
+        if sort == "popularity":
+            participation_count = (
+                select(
+                    Participation.event_id,
+                    sqlfunc.count(Participation.id).label("cnt"),
+                )
+                .where(Participation.status != ParticipationStatus.CANCELLED)
+                .group_by(Participation.event_id)
+                .subquery()
+            )
+            stmt = (
+                select(Event)
+                .outerjoin(participation_count, participation_count.c.event_id == Event.id)
+                .order_by(
+                    sqlfunc.coalesce(participation_count.c.cnt, 0).desc(),
+                    Event.start_date.asc(),
+                )
+            )
+        else:
+            stmt = select(Event).order_by(Event.start_date.asc())
+
+        if exclude_org_ids:
+            stmt = stmt.where(Event.org_id.notin_(exclude_org_ids))
+
+        stmt = stmt.limit(limit)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
     async def get_event_by_id(self, event_id: int) -> Optional[Event]:
         return await self.db.get(Event, event_id)

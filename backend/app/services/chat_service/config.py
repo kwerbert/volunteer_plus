@@ -11,7 +11,11 @@ class Settings(BaseSettings):
     _project_root: Path = Path(__file__).resolve().parents[3]
     DATABASE_URL: str = f"sqlite+aiosqlite:///{_project_root}/volunteer_plus.db"
     SERVICE_API_KEY: str = Field(default="dev-insecure-service-key-change-in-production")
-    JWT_SECRET_KEY: str = Field(default="your-secret-key-change-in-production")
+    JWT_SECRET_KEY: str = Field(
+        default="dev-insecure-secret-key-change-in-production",
+        description="JWT secret key (env: CHAT_JWT_SECRET_KEY). "
+                    "Должен совпадать с USER_JWT_SECRET_KEY.",
+    )
     JWT_ALGORITHM: str = "HS256"
     USER_SERVICE_URL: str = "http://localhost:8008"
     ORGANIZATION_SERVICE_URL: str = "http://localhost:8004"

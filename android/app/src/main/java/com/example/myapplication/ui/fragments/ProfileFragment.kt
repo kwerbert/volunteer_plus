@@ -29,9 +29,17 @@ import com.example.myapplication.util.SessionManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import android.util.Log
+import com.example.myapplication.api.NotificationApiService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class ProfileFragment : Fragment(R.layout.fragment_profile) {
+
+    @Inject
+    lateinit var notificationApiService: NotificationApiService
 
     @Inject
     lateinit var sessionManager: SessionManager
@@ -62,7 +70,6 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
         setupLogoutButton()
         setupBecomeOrganizerButton()
         observeViewModel()
-        observeBecomeOrganizerResult()
     }
 
     override fun onDestroyView() {
@@ -103,10 +110,10 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
                 position: Int,
                 id: Long
             ) {
-                if (position > 0) {
-                    val selectedName = parent?.getItemAtPosition(position) as? String ?: return
-                    viewModel.selectMainOrganization(selectedName)
-                }
+                if (position <= 0) return
+                val selectedName = parent?.getItemAtPosition(position) as? String ?: return
+                if (selectedName == viewModel.getSavedOrganizationName()) return
+                viewModel.selectMainOrganization(selectedName)
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
@@ -195,10 +202,25 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
     private fun performLogout() {
         val token = sessionManager.accessToken ?: ""
         val deviceToken = sessionManager.fcmToken
-        if (!deviceToken.isNullOrBlank() && token.isNotBlank()) {
-            MyFirebaseMessagingService.unregisterToken(deviceToken, token)
-        }
+
+        // Сначала очищаем локальную сессию
         sessionManager.clear()
+
+        // Best-effort: сообщаем серверу, чтобы он деактивировал токен.
+        // Отдельный scope — чтобы запрос дожил до конца, даже если Activity уже finish()-ится.
+        if (!deviceToken.isNullOrBlank() && token.isNotBlank()) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val response = notificationApiService.unregisterToken(deviceToken, token)
+                    if (!response.isSuccessful) {
+                        Log.w("ProfileFragment", "Unregister token failed: HTTP ${response.code()}")
+                    }
+                } catch (e: Exception) {
+                    Log.w("ProfileFragment", "Unregister token failed", e)
+                }
+            }
+        }
+
         val intent = Intent(requireContext(), LoginActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
@@ -219,21 +241,6 @@ class ProfileFragment : Fragment(R.layout.fragment_profile) {
             .setPositiveButton("Да") { _, _ -> viewModel.becomeOrganizer() }
             .setNegativeButton("Отмена", null)
             .show()
-    }
-
-    private fun observeBecomeOrganizerResult() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewModel.becomeOrganizerResult.collect { result ->
-                result?.let {
-                    if (it.isSuccess) {
-                        Toast.makeText(requireContext(), "Поздравляем! Теперь вы организатор", Toast.LENGTH_LONG).show()
-                    } else {
-                        val error = it.exceptionOrNull()?.message ?: "Ошибка"
-                        Toast.makeText(requireContext(), "Ошибка: $error", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        }
     }
 
     private fun updateOrganizationsList(organizations: List<com.example.myapplication.data.models.OrgStats>) {

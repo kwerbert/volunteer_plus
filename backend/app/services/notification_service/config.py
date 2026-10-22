@@ -4,37 +4,18 @@ from functools import lru_cache
 from pathlib import Path
 from enum import Enum
 from typing import Optional
-
-
-class Platform(str, Enum):
-    ANDROID = "ANDROID"
-    IOS = "IOS"
-    WEB = "WEB"
-
-
-class NotificationType(str, Enum):
-    CHAT = "CHAT"
-    NEW_EVENT = "NEW_EVENT"
-    EVENT_REMINDER = "EVENT_REMINDER"
-    SYSTEM = "SYSTEM"
-
-
-class Priority(str, Enum):
-    HIGH = "HIGH"
-    NORMAL = "NORMAL"
-    LOW = "LOW"
-
-
-class PushStatus(str, Enum):
-    SUCCESS = "SUCCESS"
-    FAILED = "FAILED"
-    UNREGISTERED = "UNREGISTERED"
-
+from app.utils.notifications_enums import (
+    Platform,
+    NotificationType,
+    Priority,
+    PushStatus,
+)
 
 class Settings(BaseSettings):
     SERVICE_NAME: str = "notification_service"
     SERVICE_PORT: int = 8006
     DEBUG: bool = True
+    LOG_LEVEL: str = "INFO"
     # Пути
     _project_root: Path = Path(__file__).resolve().parents[3]
     # Database
@@ -69,7 +50,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
-        env_prefix="NOTIFICATION_"
+        env_prefix="NOTIFICATION_",
     )
 
     @model_validator(mode='after')

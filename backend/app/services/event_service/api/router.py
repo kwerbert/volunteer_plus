@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
@@ -10,6 +11,7 @@ from app.services.event_service.schemas import (
     ParticipationResponse, CheckInRequest
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/events", tags=["Events"])
 
 @router.get("", response_model=List[EventResponse])
@@ -67,15 +69,45 @@ async def check_in_event(
 @router.get("/popular", response_model=dict)
 async def get_popular_events(
     page_size: int = Query(20, ge=1, le=100),
-    exclude_org_ids: Optional[str] = Query(None),
+    exclude_org_ids: Optional[str] = Query(None, description="Comma-separated org IDs"),
     role_ids: Optional[str] = Query(None),
-    sort: Optional[str] = Query(None),  # добавлен, чтобы не ронял незнакомый параметр
+    sort: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db_session)
 ):
-    """Временный эндпоинт для рекомендаций – возвращает последние события."""
+    """
+    Популярные события с фильтрами.
+    - exclude_org_ids: CSV целых ID, события этих организаций исключаются.
+    - sort=popularity: сортировка по числу регистраций.
+    - role_ids: НЕ поддерживается (в Event нет поля роли; роли хранятся
+      только в Participation.role_id, к тому же числом). Параметр принимаем,
+      чтобы клиент не получал 422, но применяем только после явной доработки схемы.
+    """
     service = EventService(db)
-    events = await service.get_events(limit=page_size)
-    from app.services.event_service.schemas import EventResponse
+
+    excluded: List[int] = []
+    if exclude_org_ids:
+        try:
+            excluded = [int(x) for x in exclude_org_ids.split(",") if x.strip()]
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="exclude_org_ids must be comma-separated integers"
+            )
+
+    if role_ids:
+        # TOD0: реализовать фильтр по ролям, когда в Event появится required_role_id :)
+        # (или через JOIN с Participation.role_id, если клиент будет присылать ID).
+        logger.warning(
+            "popular: role_ids filter is not supported yet (got %r), ignoring",
+            role_ids,
+        )
+
+    events = await service.get_popular_events(
+        exclude_org_ids=excluded or None,
+        limit=page_size,
+        sort=sort,
+    )
+
     return {"events": [EventResponse.model_validate(e).model_dump() for e in events]}
 
 @router.get("/{event_id}", response_model=EventResponse)

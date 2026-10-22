@@ -12,13 +12,14 @@ import com.example.myapplication.data.models.EventItem
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.time.OffsetDateTime
+import java.time.ZoneId
 
 class EventItemAdapter(
     private val onEventClick: (EventItem) -> Unit = {}
 ) : ListAdapter<EventItem, EventItemAdapter.EventViewHolder>(EventDiffCallback()) {
 
     companion object {
-        // ИСПРАВЛЕНО: используем потокобезопасный DateTimeFormatter вместо SimpleDateFormat
         private val INPUT_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
         private val OUTPUT_DATE_FORMAT = DateTimeFormatter.ofPattern("dd MMM", Locale("ru"))
         private val OUTPUT_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
@@ -33,24 +34,20 @@ class EventItemAdapter(
             titleText.text = event.title
             orgText.text = event.organization.name
 
-            // ИСПРАВЛЕНО: безопасный парсинг с java.time
             timeText.text = try {
-                val startParsed = LocalDateTime.parse(event.startTime, INPUT_FORMAT)
-                val datePart = startParsed.format(OUTPUT_DATE_FORMAT)
-                val timePart = startParsed.format(OUTPUT_TIME_FORMAT)
+                val startParsed = OffsetDateTime.parse(event.startTime).atZoneSameInstant(ZoneId.systemDefault())
+                val datePart = startParsed.format(DateTimeFormatter.ofPattern("dd MMM", Locale("ru")))
+                val timePart = startParsed.format(DateTimeFormatter.ofPattern("HH:mm"))
 
                 val endStr = event.endTime?.let { endRaw ->
                     try {
-                        val endParsed = LocalDateTime.parse(endRaw, INPUT_FORMAT)
-                        "–${endParsed.format(OUTPUT_TIME_FORMAT)}"
-                    } catch (e: Exception) {
-                        ""
-                    }
+                        val endParsed = OffsetDateTime.parse(endRaw).atZoneSameInstant(ZoneId.systemDefault())
+                        "–${endParsed.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+                    } catch (e: Exception) { "" }
                 } ?: ""
 
                 "$datePart • $timePart$endStr"
             } catch (e: Exception) {
-                // Fallback при невалидной дате
                 event.startTime
             }
 
@@ -72,7 +69,6 @@ class EventItemAdapter(
         override fun areItemsTheSame(old: EventItem, new: EventItem) = old.id == new.id
 
         override fun areContentsTheSame(old: EventItem, new: EventItem): Boolean {
-            // ИСПРАВЛЕНО: сравниваем ВСЕ значимые поля для корректного обновления UI
             return old.id == new.id &&
                     old.title == new.title &&
                     old.startTime == new.startTime &&

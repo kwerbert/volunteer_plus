@@ -92,7 +92,7 @@ class NotificationService:
         # 4. Fallback: отправка через FCM Push
         tokens = await self.repo.get_active_tokens(user_id)
         if not tokens:
-            logger.warning(f"No active tokens for user {user_id}, push not sent")
+            logger.info(f"Push skipped for user {user_id}: no active device tokens")
             return {"success": False, "error": "NO_TOKENS", "notification_id": notification.id}
 
         push_results = []

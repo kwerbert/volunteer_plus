@@ -12,6 +12,8 @@ import com.example.myapplication.R
 import com.example.myapplication.data.models.MessageResponse
 import java.text.SimpleDateFormat
 import java.util.*
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 
 class MessageListAdapter(
     private val currentUserId: Long = 1L
@@ -31,8 +33,8 @@ class MessageListAdapter(
         fun bind(message: MessageResponse) {
             messageText.text = message.content
             timeText.text = try {
-                val date = TIME_FORMAT.parse(message.createdAt) ?: Date()
-                TIME_FORMAT.format(date)
+                val date = OffsetDateTime.parse(message.createdAt)
+                date.format(DateTimeFormatter.ofPattern("HH:mm", Locale("ru")))
             } catch (e: Exception) {
                 ""
             }

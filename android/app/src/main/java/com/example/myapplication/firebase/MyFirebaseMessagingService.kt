@@ -30,11 +30,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         private const val CHANNEL_NAME = "Volunteer+ Notifications"
 
         // Статический метод для удаления токена (можно вызывать из ProfileFragment)
-        fun unregisterToken(deviceToken: String, jwtToken: String) {
+        /*fun unregisterToken(deviceToken: String, jwtToken: String) {
             // Создаём временный экземпляр (или можно использовать инжект, но для простоты так)
             val service = MyFirebaseMessagingService()
             service.unregisterTokenOnLogout(deviceToken, jwtToken)
-        }
+        }*/
     }
 
     @Inject
@@ -103,7 +103,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     // Публичный метод для удаления токена (вызывается из companion object)
-    fun unregisterTokenOnLogout(deviceToken: String, jwtToken: String) {
+    /*fun unregisterTokenOnLogout(deviceToken: String, jwtToken: String) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val response = notificationApiService.unregisterToken(deviceToken, jwtToken)
@@ -116,7 +116,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 Log.e(TAG, "Error unregistering token on logout", e)
             }
         }
-    }
+    }*/
 
     private fun showNotification(
         title: String?,
@@ -194,7 +194,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private fun getUserIdFromStorage(): Int? {
         val prefs = getSharedPreferences("volunteer_session", Context.MODE_PRIVATE)
-        val userId = prefs.getInt("user_id", -1)
-        return if (userId != -1) userId else null
+        val userId = prefs.getLong("user_id", -1L)
+        return if (userId != -1L) userId.toInt() else null
     }
 }

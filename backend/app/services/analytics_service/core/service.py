@@ -1,6 +1,6 @@
 import logging
 import aiohttp
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from app.services.analytics_service.db.repository import AnalyticsRepository
 from app.services.analytics_service.config import settings
@@ -23,17 +23,34 @@ class AnalyticsService:
 
     async def get_user_analytics(self, user_id: int) -> UserStatsResponse:
         try:
-            stats = await self.repo.get_user_stats(user_id)
-            if not stats:
-                stats = await self.repo.create_or_update_stats(user_id)
-
+            # 1. Получаем агрегированную статистику по всем организациям
             org_stats = await self.repo.get_stats_by_organization(user_id)
+
+            # Суммируем часы и мероприятия по ВСЕМ организациям
+            total_hours = sum(org.get("hours_worked", 0.0) for org in org_stats)
+            total_events = sum(org.get("events_completed", 0) for org in org_stats)
+
+            # 2. Достаем базовую запись для метаданных (id, created_at)
+            stats = await self.repo.get_user_stats(user_id)
+
+            if not stats:
+                # Если нет вообще никаких записей (новый пользователь)
+                return UserStatsResponse(
+                    id=0,
+                    user_id=user_id,
+                    total_hours=0.0,
+                    total_events=0,
+                    organizations_count=0,
+                    last_activity=None,
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=None
+                )
 
             return UserStatsResponse(
                 id=stats.id,
-                user_id=stats.user_id,
-                total_hours=stats.hours_worked or 0.0,  # ✅ Защита от None
-                total_events=stats.events_completed or 0,
+                user_id=user_id,
+                total_hours=total_hours,
+                total_events=total_events,
                 organizations_count=len(org_stats),
                 last_activity=stats.last_activity,
                 created_at=stats.created_at,

@@ -1,9 +1,10 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from app.services.notification_service.config import settings
+import os
 
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
+    echo=os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true",
     future=True,
 )
 

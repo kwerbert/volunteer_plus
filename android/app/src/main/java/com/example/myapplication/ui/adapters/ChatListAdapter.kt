@@ -11,6 +11,8 @@ import com.example.myapplication.R
 import com.example.myapplication.data.models.ChatResponse
 import java.text.SimpleDateFormat
 import java.util.*
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 
 class ChatListAdapter(
     private val onChatClick: (ChatResponse) -> Unit
@@ -33,8 +35,8 @@ class ChatListAdapter(
 
             // Форматирование времени
             timeText.text = try {
-                val date = DATE_FORMAT.parse(chat.createdAt) ?: Date()
-                TIME_FORMAT.format(date)
+                val date = OffsetDateTime.parse(chat.createdAt)
+                date.format(DateTimeFormatter.ofPattern("HH:mm", Locale("ru")))
             } catch (e: Exception) {
                 ""
             }

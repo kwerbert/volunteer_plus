@@ -73,6 +73,7 @@ class ProfileViewModel @Inject constructor(
             val monthlyStats = monthlyResult.getOrElse { emptyList() }
 
             profileResult.onSuccess { data ->
+                profileData = data
                 _uiState.value = ProfileUiState.Success(
                     totalHours = data.totalHours,
                     organizations = data.organizations,
@@ -90,16 +91,28 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun selectMainOrganization(orgName: String) {
+        val org = profileData?.organizations?.find { it.name == orgName }
+        if (org == null) {
+            _errorMessage.value = "Организация не найдена в вашем профиле"
+            return
+        }
+        if (org.organizationId <= 0L) {
+            _errorMessage.value = "Некорректный ID организации"
+            return
+        }
+
         selectedMainOrg = orgName
-        sessionManager.mainOrganizationName = orgName
-        val orgId = profileData?.organizations?.find { it.name == orgName }?.organizationId ?: -1L
-        sessionManager.mainOrganizationId = orgId
 
         viewModelScope.launch {
-            repository.updateMainOrganization(sessionManager.getCurrentUserId(), orgId)
-                .onFailure { error ->
-                    _errorMessage.value = error.message ?: "Ошибка сохранения основной организации"
-                }
+            repository.updateMainOrganization(
+                sessionManager.getCurrentUserId(),
+                org.organizationId
+            ).onSuccess {
+                sessionManager.mainOrganizationName = orgName
+                sessionManager.mainOrganizationId = org.organizationId
+            }.onFailure { error ->
+                _errorMessage.value = error.message ?: "Ошибка сохранения основной организации"
+            }
         }
     }
 

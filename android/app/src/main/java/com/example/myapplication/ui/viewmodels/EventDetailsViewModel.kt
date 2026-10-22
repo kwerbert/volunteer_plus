@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.models.EventRegistrationResponse
 import com.example.myapplication.data.models.ParticipationResponse
-import com.example.myapplication.data.models.SubscriptionResponse
 import com.example.myapplication.data.models.SubscriptionCheckResponse
 import com.example.myapplication.data.repository.EventRepository
 import com.example.myapplication.data.repository.SubscriptionRepository
@@ -26,13 +25,9 @@ class EventDetailsViewModel @Inject constructor(
     private val _registrationResult = MutableStateFlow<Result<EventRegistrationResponse>?>(null)
     val registrationResult: StateFlow<Result<EventRegistrationResponse>?> = _registrationResult.asStateFlow()
 
-    private val _subscriptionResult = MutableStateFlow<Result<SubscriptionResponse>?>(null)
-    val subscriptionResult: StateFlow<Result<SubscriptionResponse>?> = _subscriptionResult.asStateFlow()
-
     private val _checkInResult = MutableStateFlow<Result<ParticipationResponse>?>(null)
     val checkInResult: StateFlow<Result<ParticipationResponse>?> = _checkInResult.asStateFlow()
 
-    //НОВЫЕ ПОЛЯ для отписки/статуса
     private val _subscriptionStatus = MutableStateFlow<SubscriptionCheckResponse?>(null)
     val subscriptionStatus: StateFlow<SubscriptionCheckResponse?> = _subscriptionStatus.asStateFlow()
 
@@ -44,14 +39,6 @@ class EventDetailsViewModel @Inject constructor(
             val userId = sessionManager.getCurrentUserId().toInt()
             val result = eventRepository.registerForEvent(eventId, userId)
             _registrationResult.value = result
-        }
-    }
-
-    fun subscribeToOrganization(orgId: Int) {
-        viewModelScope.launch {
-            val userId = sessionManager.getCurrentUserId().toInt()
-            val result = subscriptionRepository.subscribe(orgId, userId)
-            _subscriptionResult.value = result
         }
     }
 

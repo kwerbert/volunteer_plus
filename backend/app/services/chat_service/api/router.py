@@ -3,10 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 import aiohttp
-import logging
 import asyncio
+import json
+import logging
 from app.services.chat_service.core.connection_manager import manager
-
+from app.services.chat_service.db.session import get_db_session
 from app.services.chat_service.api.deps import (
     get_db, get_current_user_id, verify_service_key, check_chat_access
 )
@@ -14,8 +15,9 @@ from app.services.chat_service.api.schemas import (
     ChatCreateRequest, MessageCreateRequest, MarkReadRequest,
     ChatResponse, MessageResponse, MessagesListResponse, ChatListResponse,
     UserVerifyResponse, OrganizationVerifyResponse, EventVerifyResponse,
-    NotificationRequest, ErrorResponse, ChatTypeEnum
+    NotificationRequest, ErrorResponse, ChatTypeEnum,
 )
+from app.utils.notifications_enums import NotificationType, Priority
 from app.services.chat_service.db.repository import ChatRepository
 from app.services.chat_service.core.service import ChatService
 from app.services.chat_service.config import settings
@@ -23,6 +25,13 @@ from app.services.chat_service.config import settings
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["Chat"])
 
+# Храним ссылки на фоновые задачи, чтобы их не убил GC
+_background_tasks: set[asyncio.Task] = set()
+def _spawn_background(coro) -> None:
+    """Запустить корутину в фоне и удержать ссылку до завершения."""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 # === Чаты ===
 
@@ -160,7 +169,6 @@ async def send_message(
         attachment_url=request.attachment_url
     )
 
-    # Отправка уведомления участникам (асинхронно, не блокируя ответ)
     await _send_notification_to_participants(
         chat_id=chat_id,
         sender_id=current_user_id,
@@ -168,7 +176,6 @@ async def send_message(
         db=db
     )
 
-    # следующие 2 строки должны идит после сохранения message
     message_response = MessageResponse.model_validate(message)
     await manager.broadcast(chat_id, message_response.model_dump(mode="json"))
 
@@ -229,16 +236,19 @@ async def create_organizer_chat(
         current_user_id: int = Depends(get_current_user_id),
         db: AsyncSession = Depends(get_db_session)
 ):
-    if not await _verify_organization(org_id):
+    org = await _fetch_organization(org_id)
+    if org is None:
         raise HTTPException(status_code=404, detail="Организация не найдена")
+    owner_id = org.get("owner_user_id")
+    # Организатор добавляется как admin-участник, волонтёр — как member.
+    participant_ids = [owner_id] if owner_id and owner_id != current_user_id else []
 
     service = ChatService(ChatRepository(db))
     try:
-        # participant_ids пустой — организатор организации подтянется по org_id
         chat = await service.create_chat(
             chat_type=ChatTypeEnum.ORGANIZER,
             creator_id=current_user_id,
-            participant_ids=[],
+            participant_ids=participant_ids,
             organization_id=org_id,
         )
         return chat
@@ -252,41 +262,27 @@ async def create_event_chat(
         current_user_id: int = Depends(get_current_user_id),
         db: AsyncSession = Depends(get_db)
 ):
-    # Проверка существования мероприятия
     if not await _verify_event(event_id):
         raise HTTPException(status_code=404, detail="Мероприятие не найдено")
-    """
-    Создание группового чата для мероприятия
-    Автоматически создаётся при регистрации первого волонтера
-    """
     service = ChatService(ChatRepository(db))
-
-    # Проверка что чат ещё не создан для этого мероприятия
     existing = await service.repo.find_event_chat(event_id)
     if existing:
-        return existing
-
+        return await service._build_chat_response(existing, current_user_id)
     try:
-        # Получаем время окончания мероприятия (заглушка)
         from datetime import datetime, timezone, timedelta
         event_end_time = datetime.now(timezone.utc) + timedelta(hours=4)
-
         chat = await service.create_chat(
             chat_type=ChatTypeEnum.EVENT,
             creator_id=current_user_id,
             participant_ids=[current_user_id],
             event_id=event_id
         )
-
-        # Планируем удаление (по умолчанию в 00:00 МСК)
         await service.schedule_event_chat_deletion(chat.id, event_end_time)
-
         return chat
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# ✅ НОВЫЙ ЭНДПОИНТ: Удаление ORGANIZER чата
 @router.delete("/chats/organizer/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_organizer_chat(
         chat_id: int,
@@ -304,7 +300,6 @@ async def delete_organizer_chat(
     return None
 
 
-# ✅ ОБНОВЛЁННЫЙ ЭНДПОИНТ: Ручная очистка (для админа/крона)
 @router.post("/internal/cleanup-expired-chats", response_model=dict)
 async def cleanup_expired_chats(
         _: bool = Depends(verify_service_key),
@@ -376,6 +371,19 @@ async def _verify_organization(org_id: int) -> bool:
         logger.error(f"Error verifying org {org_id}: {e}")
     return False
 
+async def _fetch_organization(org_id: int) -> Optional[dict]:
+    """Полный объект организации из Organization Service (или None)."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                    f"{settings.ORGANIZATION_SERVICE_URL}/api/v1/organizations/{org_id}",
+                    timeout=aiohttp.ClientTimeout(total=3)
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+    except Exception as e:
+        logger.error(f"Error fetching organization {org_id}: {e}")
+    return None
 
 async def _verify_event(event_id: int) -> bool:
     """Проверка мероприятия через Event Service"""
@@ -397,35 +405,194 @@ async def _send_notification_to_participants(
         message_content: str,
         db: AsyncSession
 ):
-    """Отправка пуш-уведомлений участникам чата"""
+    """
+    Планирует отправку пуш-уведомлений участникам чата (fire-and-forget).
+    Синхронно (в вызывающей корутине) делается только чтение участников из БД,
+    а фактические HTTP-запросы уходят в фоновую задачу, которая владеет
+    своей aiohttp.ClientSession и гарантированно её закрывает.
+    """
     try:
         repo = ChatRepository(db)
         members = await repo.get_chat_members(chat_id)
 
-        # Предпросмотр сообщения
-        preview = message_content[:100] + "..." if len(message_content) > 100 else message_content
+        preview = (
+            message_content[:100] + "..."
+            if len(message_content) > 100
+            else message_content
+        )
 
-        async with aiohttp.ClientSession() as session:
-            for member in members:
-                if member.user_id == sender_id or member.is_muted:
-                    continue
+        recipients = [
+            m.user_id
+            for m in members
+            if m.user_id != sender_id and not m.is_muted
+        ]
+        if not recipients:
+            return
 
-                notification = NotificationRequest(
-                    user_id=member.user_id,
-                    title="Новое сообщение",
-                    body=preview,
-                    data={"chat_id": chat_id, "sender_id": sender_id},
-                    priority="high"
-                )
-
-                # Асинхронная отправка (не ждём ответа)
-                asyncio.create_task(
-                    session.post(
-                        f"{settings.NOTIFICATION_SERVICE_URL}/api/v1/notifications",
-                        json=notification.model_dump(),
-                        headers={"X-Service-Key": settings.SERVICE_API_KEY},
-                        timeout=aiohttp.ClientTimeout(total=2)
-                    )
-                )
+        _spawn_background(
+            _do_send_notifications(
+                chat_id=chat_id,
+                sender_id=sender_id,
+                preview=preview,
+                recipients=recipients,
+            )
+        )
     except Exception as e:
-        logger.error(f"Error sending notifications for chat {chat_id}: {e}")
+        logger.error(f"Error scheduling notifications for chat {chat_id}: {e}")
+
+
+# ── Параметры retry-политики для push-уведомлений ──
+# Ретраим только retryable-ошибки (5xx, 429, сетевые таймауты).
+# 4xx (кроме 429) и NO_TOKENS — не ретраим: первое означает баг/auth
+# в нашем запросе, второе — норма (у пользователя нет активных токенов).
+_PUSH_RETRY_ATTEMPTS = 3
+_PUSH_RETRY_BACKOFF_SECONDS = 1.0
+
+
+async def _do_send_notifications(
+        chat_id: int,
+        sender_id: int,
+        preview: str,
+        recipients: list[int],
+):
+    """Фоновая отправка пушей. Владеет сессией и закрывает её сам."""
+    try:
+        async with aiohttp.ClientSession() as session:
+            tasks = [
+                _send_one_push_with_retry(
+                    session=session,
+                    user_id=user_id,
+                    chat_id=chat_id,
+                    sender_id=sender_id,
+                    body=preview,
+                )
+                for user_id in recipients
+            ]
+            if tasks:
+                # return_exceptions=True — один упавший push не роняет остальные
+                await asyncio.gather(*tasks, return_exceptions=True)
+    except Exception as e:
+        logger.error(f"Background notification sending failed for chat {chat_id}: {e}")
+
+
+async def _send_one_push_with_retry(
+        session: aiohttp.ClientSession,
+        user_id: int,
+        chat_id: int,
+        sender_id: int,
+        body: str,
+) -> None:
+    """Один push с retry-политикой.
+
+    Логируем результат осмысленно:
+      * ``sent``          — INFO;
+      * ``no_tokens``     — INFO (не ошибка, уведомление уже сохранено в БД);
+      * ``client_error``  — WARNING (422/403/401 → баг/auth, ретраить нельзя);
+      * иное              — WARNING после исчерпания попыток.
+    """
+    last_status: str = "unknown"
+    last_http: int | None = None
+
+    for attempt in range(1, _PUSH_RETRY_ATTEMPTS + 1):
+        last_status, last_http = await _send_one_push(
+            session=session,
+            user_id=user_id,
+            chat_id=chat_id,
+            sender_id=sender_id,
+            body=body,
+        )
+
+        if last_status == "sent":
+            logger.info(f"Push to user {user_id} delivered (attempt {attempt})")
+            return
+
+        if last_status == "no_tokens":
+            # Норма: push-токенов нет. Уведомление уже сохранено в БД
+            # notification_service'ом — доставим при следующем входе.
+            logger.info(
+                f"Push to user {user_id}: no active tokens "
+                f"(notification persisted, will be delivered later)"
+            )
+            return
+
+        if last_status == "client_error":
+            # 422/403/401 и прочие 4xx (кроме 429) — ретраить бессмысленно.
+            logger.warning(
+                f"Push to user {user_id} rejected with HTTP {last_http} "
+                f"(client error, no retry)"
+            )
+            return
+
+        # retryable: 5xx / 429 / network_error
+        if attempt < _PUSH_RETRY_ATTEMPTS:
+            backoff = _PUSH_RETRY_BACKOFF_SECONDS * (2 ** (attempt - 1))
+            logger.info(
+                f"Push to user {user_id} got {last_status} "
+                f"(HTTP {last_http}, attempt {attempt}/{_PUSH_RETRY_ATTEMPTS}), "
+                f"retrying in {backoff:.1f}s"
+            )
+            await asyncio.sleep(backoff)
+        else:
+            logger.warning(
+                f"Push to user {user_id} failed after {_PUSH_RETRY_ATTEMPTS} "
+                f"attempts: {last_status} (HTTP {last_http})"
+            )
+
+
+async def _send_one_push(
+        session: aiohttp.ClientSession,
+        user_id: int,
+        chat_id: int,
+        sender_id: int,
+        body: str,
+) -> tuple[str, int | None]:
+    """Один HTTP-вызов в notification_service.
+
+    Возвращает ``(status, http_code)``, где ``status`` ∈:
+      * ``"sent"``          — 2xx, доставлено;
+      * ``"no_tokens"``     — 2xx, но в теле ``error == "NO_TOKENS"``;
+      * ``"client_error"``  — 4xx (кроме 429), ретраить нельзя;
+      * ``"retryable"``     — 5xx или 429;
+      * ``"network_error"`` — сетевой таймаут/обрыв.
+    """
+    try:
+        notification = NotificationRequest(
+            user_id=user_id,
+            title="Новое сообщение",
+            body=body,
+            notification_type=NotificationType.CHAT,
+            priority=Priority.HIGH,
+            data={"chat_id": chat_id, "sender_id": sender_id},
+        )
+        async with session.post(
+                f"{settings.NOTIFICATION_SERVICE_URL}/api/v1/notifications",
+                json=notification.model_dump(mode="json"),  # enum'ы → строки "CHAT"/"HIGH"
+                headers={"X-Service-Key": settings.SERVICE_API_KEY},
+                timeout=aiohttp.ClientTimeout(total=2),
+        ) as resp:
+            body_text = await resp.text()
+
+            if resp.status >= 500 or resp.status == 429:
+                return ("retryable", resp.status)
+
+            if resp.status >= 400:
+                # 4xx (кроме 429) — клиентский баг или проблема auth.
+                # Ретраить нельзя, иначе получим шторм бесполезных запросов.
+                return ("client_error", resp.status)
+
+            # 2xx: notification_service может вернуть success=false/error=NO_TOKENS
+            try:
+                body_json = json.loads(body_text)
+                if isinstance(body_json, dict) and body_json.get("error") == "NO_TOKENS":
+                    return ("no_tokens", resp.status)
+            except (ValueError, TypeError):
+                pass
+
+            return ("sent", resp.status)
+
+    except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+        logger.debug(f"Network error pushing to user {user_id}: {e!r}")
+        return ("network_error", None)
+    except Exception as e:
+        logger.warning(f"Unexpected error pushing to user {user_id}: {e!r}")
+        return ("network_error", None)

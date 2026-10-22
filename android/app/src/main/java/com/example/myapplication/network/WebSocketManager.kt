@@ -3,9 +3,9 @@ package com.example.myapplication.network
 import android.util.Log
 import com.example.myapplication.util.Constants
 import com.google.gson.Gson
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import okhttp3.*
 import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
@@ -29,8 +29,8 @@ class WebSocketManager @Inject constructor(
         .build()
 
     private var currentWebSocket: WebSocket? = null
-    private val messageChannel = Channel<MessagePayload>(Channel.BUFFERED)
-    val incomingMessages: Flow<MessagePayload> = messageChannel.receiveAsFlow()
+    private val _incomingMessages = MutableSharedFlow<MessagePayload>(extraBufferCapacity = 64)
+    val incomingMessages: SharedFlow<MessagePayload> = _incomingMessages.asSharedFlow()
 
     data class MessagePayload(
         val id: Int,
@@ -59,7 +59,7 @@ class WebSocketManager @Inject constructor(
             override fun onMessage(webSocket: WebSocket, text: String) {
                 try {
                     val payload = Gson().fromJson(text, MessagePayload::class.java)
-                    messageChannel.trySend(payload)
+                    _incomingMessages.tryEmit(payload) // Отправка в SharedFlow
                 } catch (e: Exception) {
                     Log.e("WebSocketManager", "Failed to parse message", e)
                 }
@@ -84,7 +84,6 @@ class WebSocketManager @Inject constructor(
     fun disconnect() {
         currentWebSocket?.close(1000, "Normal closure")
         currentWebSocket = null
-        messageChannel.close()
     }
 
     fun sendMessage(content: String) {

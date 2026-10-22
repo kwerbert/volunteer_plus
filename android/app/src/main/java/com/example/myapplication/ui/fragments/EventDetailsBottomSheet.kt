@@ -26,6 +26,10 @@ import kotlinx.coroutines.launch
 import coil.load
 import coil.transform.CircleCropTransformation
 import javax.inject.Inject
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @AndroidEntryPoint
 class EventDetailsBottomSheet : BottomSheetDialogFragment() {
@@ -112,7 +116,16 @@ class EventDetailsBottomSheet : BottomSheetDialogFragment() {
     private fun setupUI() {
         event?.let { event ->
             binding.tvEventTitle.text = event.title
-            binding.tvEventDate.text = event.startTime
+            binding.tvEventDate.text = try {
+                val start = OffsetDateTime.parse(event.startTime).atZoneSameInstant(ZoneId.systemDefault())
+                val end = event.endTime?.let { OffsetDateTime.parse(it).atZoneSameInstant(ZoneId.systemDefault()) }
+                val dateStr = start.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("ru")))
+                val timeStr = start.format(DateTimeFormatter.ofPattern("HH:mm"))
+                val endStr = end?.let { " - ${it.format(DateTimeFormatter.ofPattern("HH:mm"))}" } ?: ""
+                "$dateStr • $timeStr$endStr"
+            } catch (e: Exception) {
+                event.startTime
+            }
             binding.tvOrgName.text = event.organization.name
 
             binding.ivOrgAvatar.load(event.organization.logoUrl) {
@@ -176,11 +189,6 @@ class EventDetailsBottomSheet : BottomSheetDialogFragment() {
         binding.btnRegister.setOnClickListener {
             event?.let { currentEvent ->
                 viewModel.registerForEvent(currentEvent.id.toInt())
-            }
-        }
-        binding.btnOrgSubscribe.setOnClickListener {
-            event?.let { currentEvent ->
-                viewModel.subscribeToOrganization(currentEvent.organization.id.toInt())
             }
         }
         binding.btnChatOrg.setOnClickListener {

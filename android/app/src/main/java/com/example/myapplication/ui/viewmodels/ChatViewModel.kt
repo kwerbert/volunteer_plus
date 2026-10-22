@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlinx.coroutines.Job
 
 sealed class ChatUiState {
     object Loading : ChatUiState()
@@ -37,7 +38,7 @@ class ChatViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val webSocketManager: WebSocketManager
 ) : ViewModel() {
-
+    private var incomingMessagesJob: Job? = null
     private val _uiState = MutableStateFlow<ChatUiState>(ChatUiState.Loading)
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
@@ -132,7 +133,8 @@ class ChatViewModel @Inject constructor(
         }
 
         // Сбор входящих сообщений через WebSocket
-        viewModelScope.launch {
+        incomingMessagesJob?.cancel()
+        incomingMessagesJob = viewModelScope.launch {
             webSocketManager.incomingMessages.collect { payload ->
                 if (payload.chatId == currentChatId) {
                     val newMessage = MessageResponse(

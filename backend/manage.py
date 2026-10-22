@@ -811,8 +811,9 @@ async def _seed_async(project_dir: Path) -> None:
                 (5, "Образование для всех", "Бесплатные курсы", True, 4.8, 5),
             ]:
                 s.add(Organization(
-                    id=oid, name=name, description=desc,
-                    is_verified=verified, rating=rating, category_id=cat,
+                    id = oid, name = name, description = desc,
+                    is_verified = verified, rating = rating, category_id = cat,
+                    owner_user_id = 3,  # admin@example.com
                 ))
 
             # --- Events ---

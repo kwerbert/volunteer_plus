@@ -9,17 +9,17 @@ from app.services.notification_service.config import settings
 from app.services.notification_service.db.session import engine, async_session_maker
 from app.services.notification_service.api.router import router
 from app.services.notification_service.db.models import Base
-from app.services.notification_service.core.websocket_manager import WebSocketManager
+from app.services.notification_service.core.websocket_manager import get_ws_manager
 
 # Логирование
 logging.basicConfig(
-    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-# Global WebSocket manager (в продакшене заменить на Redis)
-ws_manager = WebSocketManager()
+# Общий singleton (на будущее, если понадобится доступ из main)
+ws_manager = get_ws_manager()
 
 
 @asynccontextmanager
@@ -80,5 +80,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=settings.SERVICE_PORT,
         reload=settings.DEBUG,
-        log_level="info" if not settings.DEBUG else "debug"
+        log_level=settings.LOG_LEVEL.lower(),
     )

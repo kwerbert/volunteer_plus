@@ -340,6 +340,176 @@ class TestMainApp:
         assert routes.count("/health") == 1
         print("✓ Health endpoint доступен")
 
+# ============================================================================
+# ТЕСТЫ ОТПРАВКИ PUSH-УВЕДОМЛЕНИЙ
+# ============================================================================
+
+def _make_mock_response(status: int, body: str):
+    """Хелпер: собирает мок aiohttp-ответа (async context manager + .text())."""
+    resp = MagicMock()
+    resp.status = status
+    resp.text = AsyncMock(return_value=body)
+    resp.__aenter__ = AsyncMock(return_value=resp)
+    resp.__aexit__ = AsyncMock(return_value=None)
+    return resp
+
+
+def _make_mock_session(*responses):
+    """Хелпер: мок aiohttp.ClientSession с заданной последовательностью ответов."""
+    session = MagicMock()
+    session.post = MagicMock(side_effect=list(responses))
+    return session
+
+
+class TestPushNotifications:
+    """Тесты формирования и отправки push-уведомлений (chat → notification service)."""
+
+    def test_027_notification_request_valid_for_create_schema(self):
+        """_send_one_push собирает payload, который принимает CreateNotificationRequest.
+
+        Это регрессионный тест на исходный баг: раньше поля `notification_type`
+        не было вовсе, а `priority` был в нижнем регистре — notification_service
+        отвечал 422. Теперь сериализованный payload обязан проходить валидацию
+        целевой схемы.
+        """
+        from app.services.chat_service.api.schemas import NotificationRequest
+        from app.services.notification_service.api.schemas import CreateNotificationRequest
+        from app.utils.notifications_enums import NotificationType, Priority
+
+        chat_req = NotificationRequest(
+            user_id=3,
+            title="Новое сообщение",
+            body="Привет!",
+            notification_type=NotificationType.CHAT,
+            priority=Priority.HIGH,
+            data={"chat_id": 1, "sender_id": 2},
+        )
+        payload = chat_req.model_dump(mode="json")
+
+        # Если chat_service сгенерировал payload, несовместимый с целевой
+        # схемой, здесь вылетит ValidationError — регрессия поймана на CI.
+        validated = CreateNotificationRequest(**payload)
+        assert validated.user_id == 3
+        assert validated.notification_type == NotificationType.CHAT
+        assert validated.priority == Priority.HIGH
+        assert validated.data == {"chat_id": 1, "sender_id": 2}
+        print("✓ NotificationRequest сериализуется в валидный CreateNotificationRequest")
+
+    def test_028_shared_enums_have_expected_values(self):
+        """Общие enum'ы содержат ровно те значения, которые ждёт notification_service."""
+        from app.utils.notifications_enums import NotificationType, Priority
+
+        assert {t.value for t in NotificationType} == {
+            "CHAT", "NEW_EVENT", "EVENT_REMINDER", "SYSTEM"
+        }
+        assert {p.value for p in Priority} == {"HIGH", "NORMAL", "LOW"}
+        print("✓ Shared enums совместимы с notification_service")
+
+    @pytest.mark.asyncio
+    async def test_029_send_one_push_success(self):
+        """2xx → status='sent', payload уходит с правильными полями."""
+        from app.services.chat_service.api import router as chat_router
+
+        session = _make_mock_session(
+            _make_mock_response(201, '{"success": true, "notification_id": 42}')
+        )
+        status, code = await chat_router._send_one_push(
+            session=session, user_id=3, chat_id=1, sender_id=2, body="hi"
+        )
+        assert status == "sent"
+        assert code == 201
+
+        # Проверяем, что в notification_service ушёл корректный payload
+        payload = session.post.call_args.kwargs["json"]
+        assert payload["notification_type"] == "CHAT"  # upper-case, как enum
+        assert payload["priority"] == "HIGH"           # upper-case, как enum
+        assert payload["data"] == {"chat_id": 1, "sender_id": 2}
+        print("✓ _send_one_push: успех + валидный payload")
+
+    @pytest.mark.asyncio
+    async def test_030_send_one_push_no_tokens(self):
+        """201 с error=NO_TOKENS → status='no_tokens' (не ошибка)."""
+        from app.services.chat_service.api import router as chat_router
+
+        session = _make_mock_session(
+            _make_mock_response(201, '{"success": false, "error": "NO_TOKENS"}')
+        )
+        status, code = await chat_router._send_one_push(
+            session=session, user_id=3, chat_id=1, sender_id=2, body="hi"
+        )
+        assert status == "no_tokens"
+        assert code == 201
+        print("✓ _send_one_push: NO_TOKENS распознан как норма")
+
+    @pytest.mark.asyncio
+    async def test_031_send_one_push_client_error_not_retried(self):
+        """422 → client_error, БЕЗ retry (иначе шторм запросов при баге)."""
+        from app.services.chat_service.api import router as chat_router
+
+        resp_422 = _make_mock_response(
+            422, '{"detail": [{"loc": ["body"], "msg": "field required"}]}'
+        )
+        resp_500 = _make_mock_response(500, "boom")   # если бы ретраили, дошло бы сюда
+        session = _make_mock_session(resp_422, resp_500)
+
+        original = chat_router._PUSH_RETRY_BACKOFF_SECONDS
+        chat_router._PUSH_RETRY_BACKOFF_SECONDS = 0.0
+        try:
+            await chat_router._send_one_push_with_retry(
+                session=session, user_id=3, chat_id=1, sender_id=2, body="hi"
+            )
+        finally:
+            chat_router._PUSH_RETRY_BACKOFF_SECONDS = original
+
+        assert session.post.call_count == 1, "4xx не должен ретраиться"
+        print("✓ _send_one_push_with_retry: 422 без retry")
+
+    @pytest.mark.asyncio
+    async def test_032_send_one_push_retryable_then_success(self):
+        """500 → 500 → 201: успешный исход после двух retry."""
+        from app.services.chat_service.api import router as chat_router
+
+        session = _make_mock_session(
+            _make_mock_response(500, "boom"),
+            _make_mock_response(500, "boom"),
+            _make_mock_response(201, '{"success": true}'),
+        )
+
+        original = chat_router._PUSH_RETRY_BACKOFF_SECONDS
+        chat_router._PUSH_RETRY_BACKOFF_SECONDS = 0.0
+        try:
+            await chat_router._send_one_push_with_retry(
+                session=session, user_id=3, chat_id=1, sender_id=2, body="hi"
+            )
+        finally:
+            chat_router._PUSH_RETRY_BACKOFF_SECONDS = original
+
+        assert session.post.call_count == 3
+        print("✓ _send_one_push_with_retry: 5xx ретраится до успеха")
+
+    @pytest.mark.asyncio
+    async def test_033_send_one_push_retry_exhausted(self):
+        """Все попытки 5xx → после N попыток сдаёмся без исключения."""
+        from app.services.chat_service.api import router as chat_router
+
+        n = chat_router._PUSH_RETRY_ATTEMPTS
+        session = _make_mock_session(
+            *[_make_mock_response(500, "boom") for _ in range(n)]
+        )
+
+        original = chat_router._PUSH_RETRY_BACKOFF_SECONDS
+        chat_router._PUSH_RETRY_BACKOFF_SECONDS = 0.0
+        try:
+            # Не должно кинуть исключение наружу — фоновая задача обязана дойти до конца
+            await chat_router._send_one_push_with_retry(
+                session=session, user_id=3, chat_id=1, sender_id=2, body="hi"
+            )
+        finally:
+            chat_router._PUSH_RETRY_BACKOFF_SECONDS = original
+
+        assert session.post.call_count == n
+        print(f"✓ _send_one_push_with_retry: {n} попыток и корректная сдача")
+
 
 # ============================================================================
 # ЗАПУСК ТЕСТОВ

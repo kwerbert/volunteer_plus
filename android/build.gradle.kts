@@ -7,7 +7,7 @@ plugins {
     id("com.google.gms.google-services") version "4.4.4" apply false
 }
 
-// Для совместимости с некоторыми аннотационными процессорами
+/* Для совместимости с некоторыми аннотационными процессорами
 buildscript {
     repositories {
         google()
@@ -16,4 +16,4 @@ buildscript {
     dependencies {
         classpath("com.google.dagger:hilt-android-gradle-plugin:2.57.2")
     }
-}
+}*/

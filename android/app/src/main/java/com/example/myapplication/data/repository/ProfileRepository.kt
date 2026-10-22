@@ -3,7 +3,7 @@ package com.example.myapplication.data.repository
 import com.example.myapplication.data.api.AnalyticsApi
 import com.example.myapplication.data.api.ProfileApi
 import com.example.myapplication.data.models.AnalyticsResponse
-import com.example.myapplication.data.models.OrgAnalytics
+import com.example.myapplication.data.api.OrgAnalyticsItem
 import com.example.myapplication.data.models.OrgStats
 import com.example.myapplication.data.models.ProfileData
 import com.example.myapplication.data.models.UpdateProfileRequest
@@ -39,9 +39,18 @@ class ProfileRepository @Inject constructor(
                             null
                         }
                     }
+                    // ✅ Отдельный запрос за статистикой по организациям
+                    val orgsDeferred = async {
+                        try {
+                            analyticsApi.getOrganizationAnalytics(userId)
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
 
                     val userResponse = userDeferred.await()
                     val analyticsResponse = analyticsDeferred.await()
+                    val orgsResponse = orgsDeferred.await()
 
                     when {
                         !userResponse.isSuccessful || userResponse.body() == null -> {
@@ -55,6 +64,7 @@ class ProfileRepository @Inject constructor(
                         else -> {
                             val user = userResponse.body()!!
                             val analyticsData = analyticsResponse?.takeIf { it.isSuccessful }?.body()
+                            val orgsData = orgsResponse?.takeIf { it.isSuccessful }?.body()
 
                             val profileData = ProfileData(
                                 userId = user.id,
@@ -62,7 +72,8 @@ class ProfileRepository @Inject constructor(
                                     ?: user.email?.substringBefore("@") ?: "Пользователь",
                                 totalHours = analyticsData?.totalHours?.toInt() ?: 0,
                                 avatarUrl = null,
-                                organizations = mapOrganizations(analyticsData?.organizations),
+                                // ✅ Теперь из /by-organization, а не из /users/{id}
+                                organizations = mapOrganizationStats(orgsData?.organizations),
                                 email = user.email,
                                 phone = user.phone,
                                 role = user.role
@@ -132,16 +143,14 @@ class ProfileRepository @Inject constructor(
         }
     }
 
-    private fun mapOrganizations(analyticsOrgs: List<OrgAnalytics>?): List<OrgStats> {
-        return analyticsOrgs?.mapNotNull { org ->
-            org.organizationId?.let { orgId ->
-                OrgStats(
-                    organizationId = orgId,
-                    name = org.organizationName ?: "Организация",
-                    hours = org.hoursWorked?.toInt() ?: 0,
-                    eventsCount = org.eventsCompleted ?: 0
-                )
-            }
+    private fun mapOrganizationStats(orgs: List<OrgAnalyticsItem>?): List<OrgStats> {
+        return orgs?.map { org ->
+            OrgStats(
+                organizationId = org.organization_id,
+                name = org.organization_name ?: "Организация",
+                hours = org.hours_worked.toInt(),
+                eventsCount = org.events_completed
+            )
         } ?: emptyList()
     }
 

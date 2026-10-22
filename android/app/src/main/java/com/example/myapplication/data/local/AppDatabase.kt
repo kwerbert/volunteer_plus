@@ -11,7 +11,7 @@ import com.example.myapplication.BuildConfig
 
 @Database(
     entities = [CachedEventEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -20,17 +20,42 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
+        // Вспомогательная функция для проверки существования колонки
+        private fun SupportSQLiteDatabase.columnExists(tableName: String, columnName: String): Boolean {
+            val cursor = query("PRAGMA table_info($tableName)")
+            while (cursor.moveToNext()) {
+                val nameIndex = cursor.getColumnIndex("name")
+                if (nameIndex != -1 && cursor.getString(nameIndex) == columnName) {
+                    cursor.close()
+                    return true
+                }
+            }
+            cursor.close()
+            return false
+        }
+
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE cached_events ADD COLUMN endTime TEXT")
-                database.execSQL("ALTER TABLE cached_events ADD COLUMN locationLat REAL")
-                database.execSQL("ALTER TABLE cached_events ADD COLUMN locationLon REAL")
+                if (!database.columnExists("cached_events", "endTime")) {
+                    database.execSQL("ALTER TABLE cached_events ADD COLUMN endTime TEXT")
+                }
+                if (!database.columnExists("cached_events", "locationLat")) {
+                    database.execSQL("ALTER TABLE cached_events ADD COLUMN locationLat REAL")
+                }
+                if (!database.columnExists("cached_events", "locationLon")) {
+                    database.execSQL("ALTER TABLE cached_events ADD COLUMN locationLon REAL")
+                }
             }
         }
 
         private val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                database.execSQL("ALTER TABLE cached_events ADD COLUMN organizationId INTEGER NOT NULL DEFAULT 0")
+                if (!database.columnExists("cached_events", "organizationId")) {
+                    database.execSQL("ALTER TABLE cached_events ADD COLUMN organizationId INTEGER NOT NULL DEFAULT 0")
+                }
+                if (!database.columnExists("cached_events", "distanceKm")) {
+                    database.execSQL("ALTER TABLE cached_events ADD COLUMN distanceKm REAL")
+                }
             }
         }
 
@@ -41,11 +66,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "volunteer_plus_db"
                 )
-                    .addMigrations(MIGRATION_1_2)
-                    .addMigrations(MIGRATION_2_3)
-                    // ИСПРАВЛЕНО: fallback только для debug-сборки
-                    // В release пользователи сохранят данные при обновлении
-                    // Миграция 1→2 протестирована и работает корректно
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .apply {
                         if (BuildConfig.DEBUG) {
                             fallbackToDestructiveMigration()

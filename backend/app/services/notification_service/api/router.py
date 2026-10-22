@@ -14,7 +14,10 @@ from app.services.notification_service.api.schemas import (
 )
 from app.services.notification_service.db.session import get_db_session
 from app.services.notification_service.db.repository import NotificationRepository
-from app.services.notification_service.core.websocket_manager import WebSocketManager
+from app.services.notification_service.core.websocket_manager import (
+    WebSocketManager,
+    get_ws_manager,
+)
 from app.services.notification_service.core.notification_service import NotificationService
 from app.services.notification_service.providers.firebase_provider import FirebaseProvider
 from app.services.notification_service.utils.token_validator import validate_websocket_token, validate_jwt_token
@@ -27,7 +30,7 @@ router = APIRouter(prefix="/api/v1", tags=["notifications"])
 def get_notification_service(
         db: AsyncSession = Depends(get_db_session),
         firebase: FirebaseProvider = Depends(lambda: FirebaseProvider(settings.FIREBASE_CREDENTIALS_PATH)),
-        ws_manager: WebSocketManager = Depends(lambda: WebSocketManager())
+        ws_manager: WebSocketManager = Depends(get_ws_manager),
 ) -> NotificationService:
     repo = NotificationRepository(db)
     return NotificationService(repo, firebase, ws_manager)
@@ -41,6 +44,21 @@ def verify_service_key(x_service_key: str = Header(None)) -> None:
             detail="Invalid service key"
         )
 
+def _require_same_user(payload: dict, user_id: int) -> None:
+    """Проверяет, что JWT принадлежит указанному пользователю.
+    В JWT sub хранится строкой (см. user_service.core.security.create_access_token)."""
+    sub = payload.get("sub")
+    if sub is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid token payload")
+    try:
+        token_user_id = int(sub)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid token subject")
+    if token_user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Access denied")
 
 # === REST Endpoints ===
 
@@ -84,8 +102,7 @@ async def get_user_notifications(
     """Получение списка уведомлений пользователя"""
     # Валидация: пользователь может смотреть только свои уведомления
     payload = validate_jwt_token(token)
-    if payload.get("sub") != user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    _require_same_user(payload, user_id)
 
     items, total = await service.repo.get_notifications(
         user_id=user_id,
@@ -111,13 +128,10 @@ async def mark_notification_read(
 ):
     """Отметить уведомление как прочитанное"""
     payload = validate_jwt_token(token)
-
     notification = await service.repo.get_notification(notification_id)
     if not notification:
         raise HTTPException(status_code=404, detail="Notification not found")
-    if notification.user_id != payload.get("sub"):
-        raise HTTPException(status_code=403, detail="Access denied")
-
+    _require_same_user(payload, notification.user_id)
     await service.repo.mark_as_read(notification_id)
 
 
@@ -129,8 +143,10 @@ async def delete_notification(
 ):
     """Удалить уведомление"""
     payload = validate_jwt_token(token)
-
-    deleted = await service.repo.delete_notification(notification_id, user_id=payload.get("sub"))
+    _require_same_user(payload, int(payload["sub"]))  # sanity check sub — int
+    deleted = await service.repo.delete_notification(
+        notification_id, user_id=int(payload["sub"])
+    )
     if not deleted:
         raise HTTPException(status_code=404, detail="Notification not found")
 
@@ -158,12 +174,10 @@ async def unregister_token(
 ):
     """Удаление токена (при логауте)"""
     payload = validate_jwt_token(token)
-
-    # Проверяем, что токен принадлежит пользователю
     db_token = await service.repo.get_token(device_token)
-    if not db_token or db_token.user_id != payload.get("sub"):
+    if not db_token:
         raise HTTPException(status_code=404, detail="Token not found")
-
+    _require_same_user(payload, db_token.user_id)
     await service.unregister_token(device_token)
 
 
@@ -173,7 +187,7 @@ async def unregister_token(
 async def websocket_endpoint(
         websocket: WebSocket,
         user_id: int,
-        ws_manager: WebSocketManager = Depends(lambda: WebSocketManager())
+        ws_manager: WebSocketManager = Depends(get_ws_manager),
 ):
     """
     WebSocket для real-time уведомлений.

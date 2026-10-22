@@ -27,6 +27,9 @@ from app.services.user_service.core.security import hash_password
 VOLUNTEER_DB_URL = "sqlite+aiosqlite:///./volunteer_plus.db"
 USER_DB_URL = "sqlite+aiosqlite:///./users.db"
 
+volunteer_engine = create_async_engine(VOLUNTEER_DB_URL, echo=False)
+user_engine = create_async_engine(USER_DB_URL, echo=False)
+
 def now_utc():
     return datetime.now(timezone.utc)
 
@@ -36,9 +39,6 @@ async def seed_all():
     print("=" * 60)
     print("SEED DATABASE – Volunteer+")
     print("=" * 60)
-
-    volunteer_engine = create_async_engine(VOLUNTEER_DB_URL, echo=False)
-    user_engine = create_async_engine(USER_DB_URL, echo=False)
 
     async with get_user_session() as session:
         await seed_users(session)
@@ -131,11 +131,11 @@ async def seed_categories(session):
 async def seed_organizations(session):
     print("Организации...")
     orgs = [
-        Organization(id=1, name="Эко-Движение", description="Защита окружающей среды", is_verified=True, rating=4.9, category_id=1),
-        Organization(id=2, name="Дети-Герои", description="Помощь детям в трудной ситуации", is_verified=True, rating=4.7, category_id=2),
-        Organization(id=3, name="Помощь пожилым", description="Забота о старшем поколении", is_verified=True, rating=4.5, category_id=3),
-        Organization(id=4, name="Защита животных", description="Приют для бездомных животных", is_verified=False, rating=4.2, category_id=4),
-        Organization(id=5, name="Образование для всех", description="Бесплатные курсы", is_verified=True, rating=4.8, category_id=5),
+        Organization(id=1, name="Эко-Движение", description="Защита окружающей среды", is_verified=True, rating=4.9, category_id=1, owner_user_id=3),
+        Organization(id=2, name="Дети-Герои", description="Помощь детям в трудной ситуации", is_verified=True, rating=4.7, category_id=2, owner_user_id=3),
+        Organization(id=3, name="Помощь пожилым", description="Забота о старшем поколении", is_verified=True, rating=4.5, category_id=3, owner_user_id=3),
+        Organization(id=4, name="Защита животных", description="Приют для бездомных животных", is_verified=False, rating=4.2, category_id=4, owner_user_id=3),
+        Organization(id=5, name="Образование для всех", description="Бесплатные курсы", is_verified=True, rating=4.8, category_id=5, owner_user_id=3),
     ]
     for o in orgs:
         session.add(o)

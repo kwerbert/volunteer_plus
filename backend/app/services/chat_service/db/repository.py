@@ -20,8 +20,7 @@ class ChatRepository:
         return list(result.scalars().all())
 
     async def update_chat(self, chat_id: int, **kwargs) -> Optional[Chat]:
-        # ✅ Убираем updated_at, если он передан — SQLAlchemy сам его проставит
-        # через onupdate на колонке Chat.updated_at
+        # Убираем updated_at, если он передан — SQLAlchemy сам его проставит через onupdate на колонке Chat.updated_at
         kwargs.pop("updated_at", None)
         stmt = update(Chat).where(Chat.id == chat_id).values(**kwargs)
         await self.session.execute(stmt)
@@ -205,6 +204,19 @@ class ChatRepository:
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
+    async def find_event_chat(self, event_id: int) -> Optional[Chat]:
+        """Поиск активного чата мероприятия по event_id."""
+        stmt = (
+            select(Chat)
+            .where(
+                Chat.chat_type == ChatTypeEnum.EVENT,
+                Chat.event_id == event_id,
+                Chat.is_active == True,
+            )
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
+
     async def find_personal_chat(
         self,
         user1_id: int,
@@ -215,7 +227,6 @@ class ChatRepository:
             select(Chat)
             .join(ChatMember, ChatMember.chat_id == Chat.id)
             .where(
-                # ИСПРАВЛЕНО: ORGANIZER вместо PERSONAL
                 Chat.chat_type == ChatTypeEnum.ORGANIZER,
                 Chat.is_active == True,
                 or_(
