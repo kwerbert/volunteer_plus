@@ -1,4 +1,4 @@
-# pytest tests/test_event_s.py tests/test_user_s.py tests/test_feed_s.py tests/test_analytics_s.py tests/test_chat_s.py tests/test_org_s.py tests/test_subs_s.py -v
+# pytest tests/test_event_s.py tests/test_user_s.py tests/test_feed_s.py tests/test_analytics_s.py tests/test_chat_s.py tests/test_org_s.py tests/test_subs_s.py tests/test_notif_s.py -v
 """
 Глобальные фикстуры для pytest
 """
