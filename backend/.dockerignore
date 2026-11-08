@@ -1,0 +1,17 @@
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.logs
+.pids
+*.db
+*.sqlite*
+.env
+.env.*
+!.env.example
+.idea
+.vscode
+app/services/notification_service/firebase/*.json
+!app/services/notification_service/firebase/*.example.json

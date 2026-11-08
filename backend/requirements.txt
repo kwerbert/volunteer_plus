@@ -1,22 +1,23 @@
 # FastAPI и веб-сервер
-fastapi==0.143.2
+fastapi==0.162.1
 uvicorn==0.54.0
-websockets==17.2
+websockets==17.4
 
 # База данных
-sqlalchemy==2.1.4
+sqlalchemy[asyncio]==2.1.8
 aiosqlite==0.22.1
+asyncpg==0.32.0
 
 # HTTP клиент для асинхронных запросов
 aiohttp==3.14.5
 aiosignal==1.4.0
 frozenlist==1.8.0
-multidict==7.1.0
+multidict==7.2.1
 yarl==1.25.1
 
 # Валидация данных (Pydantic v2)
-pydantic==2.14.1
-pydantic-settings==2.16.0
+pydantic==2.14.3
+pydantic-settings==2.16.2
 
 # Email валидация
 email-validator==2.3.0
@@ -25,7 +26,7 @@ email-validator==2.3.0
 firebase-admin==7.7.0
 
 # Безопасность
-python-multipart==0.0.32
+python-multipart==0.0.33
 passlib==1.7.4
 bcrypt==5.0.0
 PyJWT==2.15.1
@@ -35,6 +36,6 @@ cryptography==50.0.2
 python-dotenv==1.2.4
 
 # Тестирование
-pytest==9.1.1
-pytest-asyncio==1.4.0
+pytest==9.2.0
+pytest-asyncio==1.4.1.post1
 httpx==0.28.1

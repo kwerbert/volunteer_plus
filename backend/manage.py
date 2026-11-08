@@ -713,8 +713,14 @@ async def _seed_async(project_dir: Path) -> None:
     )
     from app.services.user_service.core.security import hash_password
 
-    volunteer_url = f"sqlite+aiosqlite:///{project_dir}/volunteer_plus.db"
-    user_url = f"sqlite+aiosqlite:///{project_dir}/users.db"
+    volunteer_url = os.environ.get(
+        "SEED_VOLUNTEER_DB_URL",
+        f"sqlite+aiosqlite:///{project_dir}/volunteer_plus.db",
+    )
+    user_url = os.environ.get(
+        "SEED_USER_DB_URL",
+        f"sqlite+aiosqlite:///{project_dir}/users.db",
+    )
 
     volunteer_engine = create_async_engine(volunteer_url, echo=False, future=True)
     user_engine = create_async_engine(user_url, echo=False, future=True)
@@ -953,7 +959,7 @@ def cmd_seed(args: argparse.Namespace) -> int:
             "test_volunteer_plus.db",
             "test_org.db",
         ):
-            p = PROJECT_DIR / name
+            p = Path(os.environ.get("SEED_DB_DIR", PROJECT_DIR)) / name
             if p.exists():
                 try:
                     p.unlink()
@@ -983,8 +989,9 @@ def cmd_seed(args: argparse.Namespace) -> int:
     print("   admin@example.com / admin123")
     print()
     print(f"{YELLOW}💾 Файлы БД:{NC}")
-    print(f"   - {PROJECT_DIR / 'users.db'}")
-    print(f"   - {PROJECT_DIR / 'volunteer_plus.db'}")
+    _seed_dir = Path(os.environ.get("SEED_DB_DIR", PROJECT_DIR))
+    print(f"   - {_seed_dir / 'users.db'}")
+    print(f"   - {_seed_dir / 'volunteer_plus.db'}")
     print()
     print(f"{GREEN}🚀 Запустите: python manage.py run{NC}")
     return 0

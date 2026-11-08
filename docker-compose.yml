@@ -1,0 +1,184 @@
+name: volunteer-plus
+
+x-common-env: &common-env
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY required in .env.docker}
+  JWT_ALGORITHM: HS256
+  SERVICE_API_KEY: ${SERVICE_API_KEY:?SERVICE_API_KEY required in .env.docker}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  DEBUG: ${DEBUG:-false}
+
+x-health: &health
+  interval: 10s
+  timeout: 3s
+  retries: 10
+  start_period: 15s
+
+x-backend: &backend-base
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  image: volunteer-plus-backend:latest
+  restart: unless-stopped
+  networks: [volunteer-net]
+  volumes:
+    - app-data:/data
+
+services:
+
+  # ─────────────────────────────────────────────────────────────
+  user_service:
+    <<: *backend-base
+    command: uvicorn app.services.user_service.main:app --host 0.0.0.0 --port 8008
+    environment:
+      <<: *common-env
+      USER_SERVICE_PORT: "8008"
+      USER_DATABASE_URL: ${USERS_DB_URL}
+      USER_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      USER_SERVICE_API_KEY: ${SERVICE_API_KEY}
+    ports: ["8008:8008"]
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8008/health"]
+
+  # ─────────────────────────────────────────────────────────────
+  subscription_service:
+    <<: *backend-base
+    command: uvicorn app.services.subscription_service.main:app --host 0.0.0.0 --port 8002
+    environment:
+      <<: *common-env
+      SUBSCRIPTION_SERVICE_PORT: "8002"
+      SUBSCRIPTION_DATABASE_URL: ${VOLUNTEER_DB_URL}
+      SUBSCRIPTION_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      SUBSCRIPTION_USER_SERVICE_URL: http://user_service:8008
+      SUBSCRIPTION_ORGANIZATION_SERVICE_URL: http://organization_service:8004
+    ports: ["8002:8002"]
+    depends_on:
+      user_service: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8002/health"]
+
+  # ─────────────────────────────────────────────────────────────
+  organization_service:
+    <<: *backend-base
+    command: uvicorn app.services.organization_service.main:app --host 0.0.0.0 --port 8004
+    environment:
+      <<: *common-env
+      ORGANIZATION_SERVICE_PORT: "8004"
+      ORGANIZATION_DATABASE_URL: ${VOLUNTEER_DB_URL}
+      ORGANIZATION_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      ORGANIZATION_USER_SERVICE_URL: http://user_service:8008
+      ORGANIZATION_EVENT_SERVICE_URL: http://event_service:8003
+    ports: ["8004:8004"]
+    depends_on:
+      user_service: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8004/health"]
+
+  # ─────────────────────────────────────────────────────────────
+  event_service:
+    <<: *backend-base
+    command: uvicorn app.services.event_service.main:app --host 0.0.0.0 --port 8003
+    environment:
+      <<: *common-env
+      EVENT_SERVICE_PORT: "8003"
+      EVENT_DATABASE_URL: ${VOLUNTEER_DB_URL}
+      EVENT_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      EVENT_CHAT_SERVICE_URL: http://chat_service:8007
+    ports: ["8003:8003"]
+    depends_on:
+      user_service: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8003/health"]
+
+  # ─────────────────────────────────────────────────────────────
+  chat_service:
+    <<: *backend-base
+    command: uvicorn app.services.chat_service.main:app --host 0.0.0.0 --port 8007
+    environment:
+      <<: *common-env
+      CHAT_SERVICE_PORT: "8007"
+      CHAT_DATABASE_URL: ${VOLUNTEER_DB_URL}
+      CHAT_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      CHAT_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      CHAT_USER_SERVICE_URL: http://user_service:8008
+      CHAT_ORGANIZATION_SERVICE_URL: http://organization_service:8004
+      CHAT_EVENT_SERVICE_URL: http://event_service:8003
+      CHAT_NOTIFICATION_SERVICE_URL: http://notification_service:8006
+    ports: ["8007:8007"]
+    depends_on:
+      user_service: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8007/health"]
+
+  # ─────────────────────────────────────────────────────────────
+  notification_service:
+    <<: *backend-base
+    command: uvicorn app.services.notification_service.main:app --host 0.0.0.0 --port 8006
+    environment:
+      <<: *common-env
+      NOTIFICATION_SERVICE_PORT: "8006"
+      NOTIFICATION_DATABASE_URL: ${VOLUNTEER_DB_URL}
+      NOTIFICATION_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      NOTIFICATION_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      NOTIFICATION_USER_SERVICE_URL: http://user_service:8008
+      NOTIFICATION_CHAT_SERVICE_URL: http://chat_service:8007
+      # если есть firebase-ключ — раскомментировать и примонтировать (см. ниже)
+      # NOTIFICATION_FIREBASE_CREDENTIALS_PATH: /app/secrets/firebase.json
+    ports: ["8006:8006"]
+    depends_on:
+      user_service: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8006/health"]
+
+  # ─────────────────────────────────────────────────────────────
+  analytics_service:
+    <<: *backend-base
+    command: uvicorn app.services.analytics_service.main:app --host 0.0.0.0 --port 8005
+    environment:
+      <<: *common-env
+      ANALYTICS_SERVICE_PORT: "8005"
+      ANALYTICS_DATABASE_URL: ${VOLUNTEER_DB_URL}
+      ANALYTICS_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      ANALYTICS_USER_SERVICE_URL: http://user_service:8008
+      ANALYTICS_EVENT_SERVICE_URL: http://event_service:8003
+      ANALYTICS_ORGANIZATION_SERVICE_URL: http://organization_service:8004
+      ANALYTICS_SUBSCRIPTION_SERVICE_URL: http://subscription_service:8002
+    ports: ["8005:8005"]
+    depends_on:
+      user_service: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8005/health"]
+
+  # ─────────────────────────────────────────────────────────────
+  feed_service:
+    <<: *backend-base
+    command: uvicorn app.services.feed_service.main:app --host 0.0.0.0 --port 8001
+    environment:
+      <<: *common-env
+      FEED_SERVICE_PORT: "8001"
+      FEED_DATABASE_URL: ${VOLUNTEER_DB_URL}
+      FEED_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      FEED_USER_SERVICE_URL: http://user_service:8008
+      FEED_SUBSCRIPTION_SERVICE_URL: http://subscription_service:8002
+      FEED_EVENT_SERVICE_URL: http://event_service:8003
+      FEED_ORGANIZATION_SERVICE_URL: http://organization_service:8004
+      FEED_ANALYTICS_SERVICE_URL: http://analytics_service:8005
+    ports: ["8001:8001"]
+    depends_on:
+      user_service: {condition: service_healthy}
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8001/health"]
+
+networks:
+  volunteer-net:
+    driver: bridge
+
+volumes:
+  app-data:
