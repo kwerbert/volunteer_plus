@@ -1,8 +1,9 @@
 """Pydantic v2 схемы для Chat Service"""
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
-from enum import Enum
 from datetime import datetime, timezone
+from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.utils.notifications_enums import NotificationType, Priority
 

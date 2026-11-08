@@ -1,6 +1,7 @@
 import jwt
-from fastapi import HTTPException, status, WebSocket, WebSocketException
+from fastapi import HTTPException, WebSocket, WebSocketException, status
 from jwt import PyJWTError
+
 from app.services.notification_service.config import settings
 
 

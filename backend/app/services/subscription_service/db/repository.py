@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
-from sqlalchemy import select, update, and_
+from typing import List, Optional
+
+from sqlalchemy import and_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
 
 from .models import Subscription, SubscriptionLog
 

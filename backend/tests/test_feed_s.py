@@ -2,11 +2,12 @@
 Тесты Feed Service (оптимизировано: 7 → 4 теста без потери покрытия)
 Требует: pip install pytest-asyncio
 """
-import pytest
-import sys
 import os
+import sys
 import time
 from datetime import datetime, timedelta
+
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -17,9 +18,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 class TestConfigAndSetup:
     def test_001_config_and_dependencies(self):
         """Проверка загрузки конфига и корректности зависимостей"""
+        import inspect
+
         from app.services.feed_service.config import settings
         from app.services.feed_service.dependencies import get_db, get_settings
-        import inspect
 
         assert settings.SERVICE_NAME == "feed_service"
         assert settings.SERVICE_PORT == 8001
@@ -36,11 +38,16 @@ class TestConfigAndSetup:
 class TestSchemas:
     def test_002_schema_validation_and_responses(self):
         """Проверка Pydantic валидации и сборки ответа"""
-        from app.services.feed_service.api.schemas import (
-            FeedFilterParams, FeedResponse, FeedSection,
-            EventPreview, OrganizationPreview, FeedSectionType
-        )
         from pydantic import ValidationError
+
+        from app.services.feed_service.api.schemas import (
+            EventPreview,
+            FeedFilterParams,
+            FeedResponse,
+            FeedSection,
+            FeedSectionType,
+            OrganizationPreview,
+        )
 
         # Невалидные данные
         with pytest.raises(ValidationError): FeedFilterParams(location_lat=95.0)
@@ -72,10 +79,10 @@ class TestSchemas:
 class TestCoreLogic:
     def test_003_cache_and_geofilter(self):
         """Проверка TTL-кэша и фильтрации по геолокации (Haversine)"""
-        from app.services.feed_service.cache.cache_manager import CacheManager
-        from app.services.feed_service.core.filter_engine import FilterEngine
         from app.services.feed_service.api.schemas import FeedFilterParams
+        from app.services.feed_service.cache.cache_manager import CacheManager
         from app.services.feed_service.config import settings
+        from app.services.feed_service.core.filter_engine import FilterEngine
         from app.services.feed_service.utils.geolocation import calculate_distance
 
         # Кэш
@@ -112,11 +119,12 @@ class TestCoreLogic:
 class TestAsyncRepository:
     async def test_004_async_repo_logging(self):
         """Проверка async-репозитория и статистики"""
-        from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
         from sqlalchemy.pool import StaticPool
-        from app.services.feed_service.db.models import Base, FeedServiceLog
-        from app.services.feed_service.db.repository import FeedRepository
+
         from app.services.feed_service.config import settings
+        from app.services.feed_service.db.models import Base
+        from app.services.feed_service.db.repository import FeedRepository
 
         # In-memory async SQLite (StaticPool гарантирует одну БД в памяти)
         engine = create_async_engine(

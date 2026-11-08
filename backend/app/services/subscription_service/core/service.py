@@ -1,8 +1,14 @@
 import logging
+
+from app.services.subscription_service.api.schemas import (
+    SubscriptionCheckResponse,
+    SubscriptionUpdate,
+)
 from app.services.subscription_service.db.repository import SubscriptionRepository
-from app.services.subscription_service.api.schemas import SubscriptionUpdate, SubscriptionResponse, \
-    SubscriptionCheckResponse
-from app.services.subscription_service.utils.http_client import verify_organization, verify_user
+from app.services.subscription_service.utils.http_client import (
+    verify_organization,
+    verify_user,
+)
 
 logger = logging.getLogger(__name__)
 

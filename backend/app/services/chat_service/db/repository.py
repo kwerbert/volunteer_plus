@@ -1,8 +1,11 @@
-from sqlalchemy import select, update, and_, or_, desc, func
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
-from .models import Chat, ChatMember, Message, ChatTypeEnum
+from typing import List, Optional
+
+from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .models import Chat, ChatMember, ChatTypeEnum, Message
+
 
 class ChatRepository:
     """Репозиторий для операций с чатами"""

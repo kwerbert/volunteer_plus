@@ -3,13 +3,14 @@
 Генерирует рекомендации мероприятий на основе поведения пользователя
 """
 
-from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
-import aiohttp
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
+import aiohttp
+
+from ..api.schemas import EventPreview, FeedFilterParams, OrganizationPreview
 from ..config import Settings
-from ..api.schemas import FeedFilterParams, EventPreview, OrganizationPreview
 
 logger = logging.getLogger(__name__)
 

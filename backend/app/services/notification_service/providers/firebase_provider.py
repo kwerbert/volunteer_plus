@@ -1,10 +1,11 @@
 import asyncio
-from typing import Dict, Any, Optional
-from firebase_admin import credentials, messaging, initialize_app
 from pathlib import Path
+from typing import Any, Dict, Optional
 
-from app.services.notification_service.providers.push_provider import PushProvider
+from firebase_admin import credentials, initialize_app, messaging
+
 from app.services.notification_service.config import settings
+from app.services.notification_service.providers.push_provider import PushProvider
 
 
 class FirebaseProvider(PushProvider):

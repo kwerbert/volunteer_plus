@@ -1,5 +1,7 @@
-import aiohttp
 import logging
+
+import aiohttp
+
 from app.services.subscription_service.config import settings
 
 logger = logging.getLogger(__name__)

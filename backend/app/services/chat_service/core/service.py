@@ -1,12 +1,16 @@
 """Бизнес-логика Chat Service"""
-from typing import List, Tuple, Optional, Dict, Any
-from datetime import datetime, timezone
 import logging
-from app.services.chat_service.db.repository import ChatRepository
+from datetime import datetime, timezone
+from typing import List, Optional, Tuple
+
 from app.services.chat_service.api.schemas import (
-    ChatResponse, MessageResponse, ChatMemberResponse, ChatTypeEnum
+    ChatMemberResponse,
+    ChatResponse,
+    ChatTypeEnum,
+    MessageResponse,
 )
-from app.services.chat_service.db.models import Chat, Message, ChatMember
+from app.services.chat_service.db.models import Chat, Message
+from app.services.chat_service.db.repository import ChatRepository
 
 logger = logging.getLogger(__name__)
 

@@ -1,19 +1,18 @@
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
 
 # ❌ БЫЛО:
 # from app.database import get_db
-
 # ✅ СТАЛО: используем локальную сессию сервиса
 from app.services.organization_service.db.session import get_db_session
-
-from app.services.organization_service.service import OrganizationService
 from app.services.organization_service.schemas import (
     OrganizationCreate,
     OrganizationResponse,
-    OrganizationVerify
+    OrganizationVerify,
 )
+from app.services.organization_service.service import OrganizationService
 
 router = APIRouter(prefix="/api/v1/organizations", tags=["Organizations"])
 

@@ -13,6 +13,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.docker.example
 .pytest_cache/
 
 # IDE
@@ -23,3 +24,4 @@ __pycache__/
 # Logs
 .logs/
 .pids/
+.ruff_cache/

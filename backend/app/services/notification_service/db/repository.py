@@ -1,11 +1,14 @@
-from sqlalchemy import select, update, delete, func
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from typing import Optional, List
-from datetime import datetime
+from typing import List, Optional
 
-from app.services.notification_service.db.models import NotificationToken, Notification, PushLog
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.notification_service.config import NotificationType, Priority
+from app.services.notification_service.db.models import (
+    Notification,
+    NotificationToken,
+    PushLog,
+)
 
 
 class NotificationRepository:

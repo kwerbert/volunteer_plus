@@ -1,8 +1,8 @@
-from fastapi import WebSocket
-from typing import Dict, List
 import asyncio
 from functools import lru_cache
-from app.services.notification_service.config import settings
+from typing import Dict, List
+
+from fastapi import WebSocket
 
 
 class WebSocketManager:

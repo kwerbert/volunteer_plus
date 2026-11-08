@@ -1,17 +1,22 @@
-import pytest
-import asyncio
-from httpx import AsyncClient, ASGITransport
-from datetime import datetime, timezone
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy import text
-import sys
 import os
+import sys
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 # Импортируем локальные компоненты сервиса
+from app.services.organization_service.db.models import (  # ← явный импорт моделей!
+    Base,
+    Category,
+)
+from app.services.organization_service.db.session import (
+    get_db_session,  # ← та же, что в роутере
+)
 from app.services.organization_service.main import app
-from app.services.organization_service.db.models import Base, Organization, Category  # ← явный импорт моделей!
-from app.services.organization_service.db.session import get_db_session  # ← та же, что в роутере
 
 # === ТЕСТОВАЯ БД ===
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_org.db"

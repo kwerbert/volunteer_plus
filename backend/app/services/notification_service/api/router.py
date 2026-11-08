@@ -1,28 +1,46 @@
-from fastapi import APIRouter, Depends, HTTPException, status, WebSocket, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
-from sqlalchemy import func
-from fastapi import Header  # для verify_service_key
-from datetime import datetime, timezone
 import asyncio
+from typing import Optional
 
-from app.services.notification_service.config import settings, NotificationType, Priority
-from app.services.notification_service.api.schemas import (
-    CreateNotificationRequest, RegisterTokenRequest,
-    NotificationResponse, NotificationsListResponse,
-    RegisterTokenResponse, SendNotificationResponse, HealthResponse
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,  # для verify_service_key
+    HTTPException,
+    Query,
+    WebSocket,
+    status,
 )
-from app.services.notification_service.db.session import get_db_session
-from app.services.notification_service.db.repository import NotificationRepository
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.notification_service.api.schemas import (
+    CreateNotificationRequest,
+    NotificationsListResponse,
+    RegisterTokenRequest,
+    RegisterTokenResponse,
+    SendNotificationResponse,
+)
+from app.services.notification_service.config import (
+    NotificationType,
+    settings,
+)
+from app.services.notification_service.core.notification_service import (
+    NotificationService,
+)
 from app.services.notification_service.core.websocket_manager import (
     WebSocketManager,
     get_ws_manager,
 )
-from app.services.notification_service.core.notification_service import NotificationService
-from app.services.notification_service.providers.firebase_provider import FirebaseProvider
-from app.services.notification_service.utils.token_validator import validate_websocket_token, validate_jwt_token
+from app.services.notification_service.db.repository import NotificationRepository
+from app.services.notification_service.db.session import get_db_session
+from app.services.notification_service.providers.firebase_provider import (
+    FirebaseProvider,
+)
+from app.services.notification_service.utils.token_validator import (
+    validate_jwt_token,
+    validate_websocket_token,
+)
 
-router = APIRouter(prefix="/api/v1", tags=["notifications"])
+router = APIRouter(prefix="/api/v1", tags=["Notifications"])
 
 
 # === Dependencies ===
