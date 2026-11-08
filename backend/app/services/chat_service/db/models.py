@@ -1,8 +1,18 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, Enum as SQLEnum, ForeignKey, func, \
-    JSON  # ✅ ДОБАВЛЕНО JSON
-from sqlalchemy.orm import declarative_base, relationship
-from datetime import datetime, timezone
 import enum
+from datetime import datetime, timezone
+
+from sqlalchemy import (  # ✅ ДОБАВЛЕНО JSON
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 

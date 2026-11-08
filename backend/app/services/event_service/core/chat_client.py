@@ -1,6 +1,8 @@
-import httpx
 import logging
 from typing import Optional
+
+import httpx
+
 from app.services.event_service.config import settings
 
 logger = logging.getLogger(__name__)

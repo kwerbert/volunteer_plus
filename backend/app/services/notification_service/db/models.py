@@ -1,7 +1,14 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, JSON, ForeignKey, Enum as SQLEnum
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
-from app.services.notification_service.config import Platform, NotificationType, Priority, PushStatus
+
+from app.services.notification_service.config import (
+    NotificationType,
+    Platform,
+    Priority,
+    PushStatus,
+)
 
 Base = declarative_base()
 

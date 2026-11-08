@@ -1,15 +1,19 @@
 import logging
+from datetime import datetime
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime
-from typing import Optional, List
 
 from app.services.event_service.db.session import get_db_session
-from app.services.event_service.service import EventService
 from app.services.event_service.schemas import (
-    EventCreate, EventResponse, RegisterRequest,
-    ParticipationResponse, CheckInRequest
+    CheckInRequest,
+    EventCreate,
+    EventResponse,
+    ParticipationResponse,
+    RegisterRequest,
 )
+from app.services.event_service.service import EventService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/events", tags=["Events"])

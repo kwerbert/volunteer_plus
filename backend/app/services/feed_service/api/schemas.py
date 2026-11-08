@@ -2,10 +2,12 @@
 Pydantic схемы для валидации запросов и ответов
 Обновлено для Pydantic v2: model_config вместо class Config
 """
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class FeedSectionType(str, Enum):
     FROM_SUBSCRIPTIONS = "from_subscriptions"

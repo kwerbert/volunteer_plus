@@ -2,8 +2,8 @@
 """
 Глобальные фикстуры для pytest
 """
+
 import pytest
-import sys
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -14,7 +14,9 @@ def clear_all_settings_cache():
     """
     # Очищаем кэш analytics_service
     try:
-        from app.services.analytics_service.config import get_settings as analytics_get_settings
+        from app.services.analytics_service.config import (
+            get_settings as analytics_get_settings,
+        )
         analytics_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
@@ -28,14 +30,18 @@ def clear_all_settings_cache():
 
     # Очищаем кэш subscription_service
     try:
-        from app.services.subscription_service.config import get_settings as sub_get_settings
+        from app.services.subscription_service.config import (
+            get_settings as sub_get_settings,
+        )
         sub_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
 
     # Очищаем кэш organization_service
     try:
-        from app.services.organization_service.config import get_settings as org_get_settings
+        from app.services.organization_service.config import (
+            get_settings as org_get_settings,
+        )
         org_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
@@ -51,7 +57,9 @@ def clear_all_settings_cache():
 
     # Очищаем после всех тестов
     try:
-        from app.services.analytics_service.config import get_settings as analytics_get_settings
+        from app.services.analytics_service.config import (
+            get_settings as analytics_get_settings,
+        )
         analytics_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass

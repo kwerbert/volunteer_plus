@@ -1,8 +1,10 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.services.chat_service.db.models import Chat, ChatMember, ChatTypeEnum
-from app.services.chat_service.db.repository import ChatRepository
 import logging
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.chat_service.db.models import Chat, ChatTypeEnum
+from app.services.chat_service.db.repository import ChatRepository
 
 logger = logging.getLogger(__name__)
 

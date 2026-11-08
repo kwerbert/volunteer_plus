@@ -2,11 +2,12 @@
 Тесты Subscription Service (pytest версия)
 Консервативный перевод с unittest → pytest
 """
-import pytest
-import sys
 import os
+import sys
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # ============================================================================
 # КРИТИЧЕСКИ ВАЖНО: Настройка путей (как в оригинальных тестах)
@@ -75,8 +76,9 @@ class TestSchemas:
     """Тесты Pydantic схем"""
     def test_003_subscription_create_schema(self):
         """Проверка схемы создания подписки"""
-        from app.services.subscription_service.api.schemas import SubscriptionCreate
         from pydantic import ValidationError
+
+        from app.services.subscription_service.api.schemas import SubscriptionCreate
         # Валидные данные
         sub = SubscriptionCreate(user_id=1, org_id=2, role="volunteer")
         assert sub.user_id == 1
@@ -102,9 +104,9 @@ class TestSchemas:
     def test_005_response_schemas(self):
         """Проверка схем ответов API"""
         from app.services.subscription_service.api.schemas import (
-            SubscriptionResponse,
+            MessageResponse,
             SubscriptionCheckResponse,
-            MessageResponse
+            SubscriptionResponse,
         )
         response = SubscriptionResponse(
             id=1, user_id=100, org_id=200, role="volunteer",
@@ -152,8 +154,10 @@ class TestRepository:
     """Тесты репозитория"""
     async def test_008_repository_read_operations(self, mock_session):
         """Проверка операций чтения"""
-        from app.services.subscription_service.db.repository import SubscriptionRepository
         from app.services.subscription_service.db.models import Subscription
+        from app.services.subscription_service.db.repository import (
+            SubscriptionRepository,
+        )
         repo = SubscriptionRepository(mock_session)
         mock_result = MagicMock()
         mock_result.scalars().all.return_value = [
@@ -171,7 +175,9 @@ class TestRepository:
 
     async def test_009_repository_create(self, mock_session):
         """Проверка создания подписки"""
-        from app.services.subscription_service.db.repository import SubscriptionRepository
+        from app.services.subscription_service.db.repository import (
+            SubscriptionRepository,
+        )
         repo = SubscriptionRepository(mock_session)
         result = await repo.create(user_id=100, org_id=200, role="admin")
         assert result.user_id == 100
@@ -180,7 +186,9 @@ class TestRepository:
 
     async def test_010_repository_update_and_delete(self, mock_session):
         """Проверка обновления и удаления"""
-        from app.services.subscription_service.db.repository import SubscriptionRepository
+        from app.services.subscription_service.db.repository import (
+            SubscriptionRepository,
+        )
         repo = SubscriptionRepository(mock_session)
         result = await repo.soft_delete(sub_id=5)
         assert result is True
@@ -195,8 +203,10 @@ class TestRepository:
 
     async def test_011_repository_log_action(self, mock_session):
         """Проверка логирования действий"""
-        from app.services.subscription_service.db.repository import SubscriptionRepository
         from app.services.subscription_service.db.models import SubscriptionLog
+        from app.services.subscription_service.db.repository import (
+            SubscriptionRepository,
+        )
         repo = SubscriptionRepository(mock_session)
         await repo.log_action(
             user_id=100, org_id=200, action="SUBSCRIBE",
@@ -269,8 +279,8 @@ class TestService:
 
     async def test_015_service_update_and_check_status(self, mock_repository):
         """Проверка обновления и проверки статуса"""
-        from app.services.subscription_service.core.service import SubscriptionService
         from app.services.subscription_service.api.schemas import SubscriptionUpdate
+        from app.services.subscription_service.core.service import SubscriptionService
         from app.services.subscription_service.db.models import Subscription
         service = SubscriptionService(mock_repository)
         mock_repository.get_by_id.side_effect = [
@@ -313,7 +323,8 @@ class TestHTTPClient:
     async def test_017_http_client_success(self):
         """Проверка верификации сущностей (успех)"""
         from app.services.subscription_service.utils.http_client import (
-            verify_organization, verify_user
+            verify_organization,
+            verify_user,
         )
         mock_response = AsyncMock()
         mock_response.status = 200
@@ -335,7 +346,9 @@ class TestHTTPClient:
 
     async def test_018_http_client_errors(self):
         """Проверка обработки ошибок HTTP клиента"""
-        from app.services.subscription_service.utils.http_client import verify_organization, verify_user
+        from app.services.subscription_service.utils.http_client import (
+            verify_organization,
+        )
         mock_response_404 = AsyncMock()
         mock_response_404.status = 404
         mock_response_404.__aenter__ = AsyncMock(return_value=mock_response_404)

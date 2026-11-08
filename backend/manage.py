@@ -690,28 +690,61 @@ async def _seed_async(project_dir: Path) -> None:
     """
     # --- тяжёлые импорты (нужны только здесь) ---
     from sqlalchemy.ext.asyncio import (
-        create_async_engine, AsyncSession, async_sessionmaker,
+        AsyncSession,
+        async_sessionmaker,
+        create_async_engine,
     )
 
-    from app.services.user_service.db.models import (
-        Base as UserBase, User, UserSettings, UserLocation, UserRoleEnum,
-    )
-    from app.services.organization_service.db.models import (
-        Base as OrgBase, Organization, Category,
-    )
-    from app.services.event_service.db.models import (
-        Base as EventBase, Event, Participation, ParticipationStatus,
-    )
-    from app.services.subscription_service.db.models import (
-        Base as SubBase, Subscription, SubscriptionLog,
-    )
-    from app.services.chat_service.db.models import (
-        Base as ChatBase, Chat, ChatMember, Message, ChatTypeEnum, MessageTypeEnum,
+    from app.services.analytics_service.db.models import (
+        Base as AnalyticsBase,
     )
     from app.services.analytics_service.db.models import (
-        Base as AnalyticsBase, VolunteerStats, MonthlyStats, PreferredRole,
+        MonthlyStats,
+        PreferredRole,
+        VolunteerStats,
+    )
+    from app.services.chat_service.db.models import (
+        Base as ChatBase,
+    )
+    from app.services.chat_service.db.models import (
+        Chat,
+        ChatMember,
+        ChatTypeEnum,
+        Message,
+        MessageTypeEnum,
+    )
+    from app.services.event_service.db.models import (
+        Base as EventBase,
+    )
+    from app.services.event_service.db.models import (
+        Event,
+        Participation,
+        ParticipationStatus,
+    )
+    from app.services.organization_service.db.models import (
+        Base as OrgBase,
+    )
+    from app.services.organization_service.db.models import (
+        Category,
+        Organization,
+    )
+    from app.services.subscription_service.db.models import (
+        Base as SubBase,
+    )
+    from app.services.subscription_service.db.models import (
+        Subscription,
+        SubscriptionLog,
     )
     from app.services.user_service.core.security import hash_password
+    from app.services.user_service.db.models import (
+        Base as UserBase,
+    )
+    from app.services.user_service.db.models import (
+        User,
+        UserLocation,
+        UserRoleEnum,
+        UserSettings,
+    )
 
     volunteer_url = os.environ.get(
         "SEED_VOLUNTEER_DB_URL",

@@ -1,15 +1,16 @@
 import logging
-import uvicorn
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.notification_service.api.schemas import HealthResponse
 from datetime import datetime, timezone
-from app.services.notification_service.config import settings
-from app.services.notification_service.db.session import engine, async_session_maker
+
+import uvicorn
+from fastapi import FastAPI
+
 from app.services.notification_service.api.router import router
-from app.services.notification_service.db.models import Base
+from app.services.notification_service.api.schemas import HealthResponse
+from app.services.notification_service.config import settings
 from app.services.notification_service.core.websocket_manager import get_ws_manager
+from app.services.notification_service.db.models import Base
+from app.services.notification_service.db.session import engine
 
 # Логирование
 logging.basicConfig(
@@ -40,11 +41,10 @@ async def lifespan(app: FastAPI):
 
 # FastAPI app
 app = FastAPI(
-    title="Notification Service",
-    description="Push + WebSocket notifications for Volunteer+",
+    title=settings.SERVICE_NAME,
+    description="Микросервис уведомлений (Push + WebSocket)",
     version="1.0.0",
-    lifespan=lifespan,
-    debug=settings.DEBUG
+    lifespan=lifespan
 )
 
 # Include router

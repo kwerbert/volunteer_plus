@@ -1,11 +1,13 @@
+import logging
+from contextlib import asynccontextmanager  # добавить
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager  # добавить
-import logging
-import uvicorn
-from app.services.event_service.config import settings
+
 from app.services.event_service.api.router import router
-from app.services.event_service.db.session import init_db, engine
+from app.services.event_service.config import settings
+from app.services.event_service.db.session import engine, init_db
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -27,9 +29,7 @@ app = FastAPI(
     title=settings.SERVICE_NAME,
     description="Микросервис управления мероприятиями",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    lifespan=lifespan  # добавить
+    lifespan=lifespan
 )
 
 app.add_middleware(

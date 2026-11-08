@@ -1,12 +1,14 @@
 """Точка входа User Service"""
+import logging
+from contextlib import asynccontextmanager
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import logging
-import uvicorn
-from app.services.user_service.config import settings
+
 from app.services.user_service.api.router import router
-from app.services.user_service.db.session import init_db, engine
+from app.services.user_service.config import settings
+from app.services.user_service.db.session import engine, init_db
 
 # Настройка логирования
 logging.basicConfig(
@@ -22,7 +24,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.SERVICE_NAME} on {settings.SERVICE_PORT}")
     logger.info(f"Database: {settings.DATABASE_URL}")
     logger.info(f"JWT Algorithm: {settings.JWT_ALGORITHM}")
-    logger.info(f"Service-to-Service Auth: API Key (X-Service-Key)")
+    logger.info("Service-to-Service Auth: API Key (X-Service-Key)")
     await init_db()
     logger.info("Database tables checked/created")
     yield
@@ -32,10 +34,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.SERVICE_NAME,
-    description="Микросервис аутентификации и управления пользователями Volunteer+",
+    description="Микросервис аутентификации и управления пользователями",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
     lifespan=lifespan
 )
 

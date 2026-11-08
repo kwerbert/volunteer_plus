@@ -1,17 +1,18 @@
+import logging
+import os
+import sys
+from contextlib import asynccontextmanager
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import logging
-import uvicorn
-import sys
-import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
 
-from app.services.feed_service.config import settings
 from app.services.feed_service.api.routes import router as api_router
-from app.services.feed_service.db.session import init_db, engine
+from app.services.feed_service.config import settings
 from app.services.feed_service.core.http_client import http_client_manager
+from app.services.feed_service.db.session import engine, init_db
 
 # Настройка логирования
 logging.basicConfig(
@@ -56,9 +57,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title=f"{settings.SERVICE_NAME} - Volunteer+ API",
+    title=settings.SERVICE_NAME,
     description="Микросервис главной страницы: персонализированная лента мероприятий",
-    version=__version__,
+    version="1.0.0",
     lifespan=lifespan
 )
 

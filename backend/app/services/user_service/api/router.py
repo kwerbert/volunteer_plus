@@ -1,16 +1,26 @@
 """API эндпоинты User Service"""
-from fastapi import APIRouter, Depends, HTTPException, status, Header
-from typing import Optional
-from app.services.user_service.api.schemas import (
-    RegisterRequest, LoginRequest, TokenResponse, RefreshRequest,
-    UserResponse, UserUpdateRequest,
-    LocationRequest, LocationResponse,
-    UserSettingsResponse, UserSettingsUpdateRequest,
-    UserVerifyResponse, UserProfileForFeedResponse
-)
+from fastapi import APIRouter, Depends, HTTPException, status
+
 from app.services.user_service.api.deps import (
-    get_auth_service, get_user_service, get_current_user_id,
-    verify_service_key, check_user_ownership
+    check_user_ownership,
+    get_auth_service,
+    get_current_user_id,
+    get_user_service,
+    verify_service_key,
+)
+from app.services.user_service.api.schemas import (
+    LocationRequest,
+    LocationResponse,
+    LoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserProfileForFeedResponse,
+    UserResponse,
+    UserSettingsResponse,
+    UserSettingsUpdateRequest,
+    UserUpdateRequest,
+    UserVerifyResponse,
 )
 from app.services.user_service.core.auth_service import AuthService
 from app.services.user_service.core.service import UserService

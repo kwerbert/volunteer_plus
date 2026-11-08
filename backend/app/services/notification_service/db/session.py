@@ -1,6 +1,8 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from app.services.notification_service.config import settings
 import os
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from app.services.notification_service.config import settings
 
 engine = create_async_engine(
     settings.DATABASE_URL,

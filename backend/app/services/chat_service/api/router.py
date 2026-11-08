@@ -1,29 +1,38 @@
 """API эндпоинты Chat Service"""
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
-import aiohttp
 import asyncio
 import json
 import logging
-from app.services.chat_service.core.connection_manager import manager
-from app.services.chat_service.db.session import get_db_session
+from typing import List, Optional
+
+import aiohttp
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.chat_service.api.deps import (
-    get_db, get_current_user_id, verify_service_key, check_chat_access
+    check_chat_access,
+    get_current_user_id,
+    get_db,
+    verify_service_key,
 )
 from app.services.chat_service.api.schemas import (
-    ChatCreateRequest, MessageCreateRequest, MarkReadRequest,
-    ChatResponse, MessageResponse, MessagesListResponse, ChatListResponse,
-    UserVerifyResponse, OrganizationVerifyResponse, EventVerifyResponse,
-    NotificationRequest, ErrorResponse, ChatTypeEnum,
+    ChatCreateRequest,
+    ChatListResponse,
+    ChatResponse,
+    ChatTypeEnum,
+    MessageCreateRequest,
+    MessageResponse,
+    MessagesListResponse,
+    NotificationRequest,
 )
-from app.utils.notifications_enums import NotificationType, Priority
-from app.services.chat_service.db.repository import ChatRepository
-from app.services.chat_service.core.service import ChatService
 from app.services.chat_service.config import settings
+from app.services.chat_service.core.connection_manager import manager
+from app.services.chat_service.core.service import ChatService
+from app.services.chat_service.db.repository import ChatRepository
+from app.services.chat_service.db.session import get_db_session
+from app.utils.notifications_enums import NotificationType, Priority
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/v1", tags=["Chat"])
+router = APIRouter(prefix="/api/v1", tags=["Chats"])
 
 # Храним ссылки на фоновые задачи, чтобы их не убил GC
 _background_tasks: set[asyncio.Task] = set()
@@ -269,7 +278,7 @@ async def create_event_chat(
     if existing:
         return await service._build_chat_response(existing, current_user_id)
     try:
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
         event_end_time = datetime.now(timezone.utc) + timedelta(hours=4)
         chat = await service.create_chat(
             chat_type=ChatTypeEnum.EVENT,

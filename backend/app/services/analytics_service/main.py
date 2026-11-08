@@ -1,11 +1,13 @@
+import logging
+from contextlib import asynccontextmanager
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import logging
-import uvicorn
-from app.services.analytics_service.config import settings
+
 from app.services.analytics_service.api.router import router
-from app.services.analytics_service.db.session import init_db, engine
+from app.services.analytics_service.config import settings
+from app.services.analytics_service.db.session import engine, init_db
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -29,10 +31,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.SERVICE_NAME,
-    description="Микросервис аналитики волонтёрства",
+    description="Микросервис аналитики волонтерства",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
     lifespan=lifespan
 )
 

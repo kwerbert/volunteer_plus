@@ -2,11 +2,12 @@
 Тесты Chat Service (pytest версия)
 Следует структуре test_user_s.py
 """
-import pytest
-import sys
 import os
+import sys
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 # ============================================================================
 # Настройка путей
@@ -121,8 +122,12 @@ class TestSchemas:
 
     def test_003_chat_create_request_schema(self):
         """Проверка схемы создания чата"""
-        from app.services.chat_service.api.schemas import ChatCreateRequest, ChatTypeEnum
         from pydantic import ValidationError
+
+        from app.services.chat_service.api.schemas import (
+            ChatCreateRequest,
+            ChatTypeEnum,
+        )
 
         req = ChatCreateRequest(
             chat_type=ChatTypeEnum.ORGANIZER,  # ✅ ЗАМЕНЕНО
@@ -137,8 +142,12 @@ class TestSchemas:
 
     def test_004_message_create_request_schema(self):
         """Проверка схемы отправки сообщения"""
-        from app.services.chat_service.api.schemas import MessageCreateRequest, MessageTypeEnum
         from pydantic import ValidationError
+
+        from app.services.chat_service.api.schemas import (
+            MessageCreateRequest,
+            MessageTypeEnum,
+        )
 
         req = MessageCreateRequest(
             content="Hello!",
@@ -155,7 +164,10 @@ class TestSchemas:
     def test_005_response_schemas(self):
         """Проверка схем ответов"""
         from app.services.chat_service.api.schemas import (
-            ChatResponse, MessageResponse, ChatMemberResponse, ChatTypeEnum
+            ChatMemberResponse,
+            ChatResponse,
+            ChatTypeEnum,
+            MessageResponse,
         )
 
         member = ChatMemberResponse(
@@ -186,7 +198,7 @@ class TestModels:
 
     def test_006_chat_model(self):
         """Проверка модели Chat"""
-        from app.services.chat_service.db.models import Chat, ChatTypeEnum
+        from app.services.chat_service.db.models import Chat
         assert Chat.__tablename__ == "chats"
         columns = [col.name for col in Chat.__table__.columns]
         required = ['id', 'chat_type', 'title', 'is_active', 'created_at']
@@ -196,7 +208,7 @@ class TestModels:
 
     def test_007_message_model(self):
         """Проверка модели Message"""
-        from app.services.chat_service.db.models import Message, MessageTypeEnum
+        from app.services.chat_service.db.models import Message
         assert Message.__tablename__ == "messages"
         columns = [col.name for col in Message.__table__.columns]
         required = ['id', 'chat_id', 'sender_id', 'content', 'is_read', 'created_at']
@@ -215,8 +227,8 @@ class TestRepository:
 
     async def test_008_create_chat(self, mock_session, mock_repo):
         """Проверка создания чата"""
-        from app.services.chat_service.db.repository import ChatRepository
         from app.services.chat_service.db.models import Chat, ChatTypeEnum
+        from app.services.chat_service.db.repository import ChatRepository
 
         mock_chat = Chat(
             id=1, chat_type=ChatTypeEnum.ORGANIZER, is_active=True,  # ✅ ЗАМЕНЕНО
@@ -232,8 +244,8 @@ class TestRepository:
 
     async def test_009_create_message(self, mock_session):
         """Проверка создания сообщения"""
-        from app.services.chat_service.db.repository import ChatRepository
         from app.services.chat_service.db.models import Message, MessageTypeEnum
+        from app.services.chat_service.db.repository import ChatRepository
 
         repo = ChatRepository(mock_session)
         mock_message = Message(
@@ -373,7 +385,9 @@ class TestPushNotifications:
         целевой схемы.
         """
         from app.services.chat_service.api.schemas import NotificationRequest
-        from app.services.notification_service.api.schemas import CreateNotificationRequest
+        from app.services.notification_service.api.schemas import (
+            CreateNotificationRequest,
+        )
         from app.utils.notifications_enums import NotificationType, Priority
 
         chat_req = NotificationRequest(

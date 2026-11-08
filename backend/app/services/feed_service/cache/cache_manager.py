@@ -1,11 +1,12 @@
 """
 Менеджер кэширования для ускорения работы сервиса
 """
-from typing import Optional, Any
 import json
-import time
-from ..config import Settings
 import logging
+import time
+from typing import Any, Optional
+
+from ..config import Settings
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,9 @@
 # app/services/analytics_service/api/schemas.py
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class UserStatsBase(BaseModel):
     user_id: int

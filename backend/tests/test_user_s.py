@@ -1,11 +1,12 @@
 """
 Тесты User Service (pytest версия)
 """
-import pytest
-import sys
 import os
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+import sys
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 # ============================================================================
 # КРИТИЧЕСКИ ВАЖНО: Настройка путей ДО любого импорта модулей проекта
@@ -118,8 +119,9 @@ class TestSchemas:
 
     def test_003_register_request_schema(self):
         """Проверка схемы регистрации"""
-        from app.services.user_service.api.schemas import RegisterRequest
         from pydantic import ValidationError
+
+        from app.services.user_service.api.schemas import RegisterRequest
 
         req = RegisterRequest(
             email="user@example.com",
@@ -140,8 +142,9 @@ class TestSchemas:
 
     def test_004_location_request_schema(self):
         """Проверка схемы геолокации"""
-        from app.services.user_service.api.schemas import LocationRequest
         from pydantic import ValidationError
+
+        from app.services.user_service.api.schemas import LocationRequest
 
         req = LocationRequest(
             latitude=55.7558,
@@ -161,8 +164,9 @@ class TestSchemas:
 
     def test_005_settings_update_schema(self):
         """Проверка схемы обновления настроек"""
-        from app.services.user_service.api.schemas import UserSettingsUpdateRequest
         from pydantic import ValidationError
+
+        from app.services.user_service.api.schemas import UserSettingsUpdateRequest
 
         req = UserSettingsUpdateRequest(
             search_radius_km=25,
@@ -188,7 +192,10 @@ class TestSecurity:
 
     def test_006_password_hash_and_verify(self):
         """Проверка хеширования и проверки пароля"""
-        from app.services.user_service.core.security import hash_password, verify_password
+        from app.services.user_service.core.security import (
+            hash_password,
+            verify_password,
+        )
 
         password = "secure_password_123"
         hashed = hash_password(password)
@@ -204,7 +211,9 @@ class TestSecurity:
     def test_007_jwt_token_creation_and_decode(self):
         """Проверка создания и декодирования JWT токенов"""
         from app.services.user_service.core.security import (
-            create_access_token, create_refresh_token, decode_token
+            create_access_token,
+            create_refresh_token,
+            decode_token,
         )
 
         token_data = {"user_id": 1, "email": "user@example.com", "role": "volunteer"}
@@ -234,7 +243,7 @@ class TestAuthService:
     async def test_008_register_user(self, mock_user_repo):
         """Проверка регистрации пользователя"""
         from app.services.user_service.core.auth_service import AuthService
-        from app.services.user_service.db.models import User, UserSettings, UserRoleEnum
+        from app.services.user_service.db.models import User, UserRoleEnum, UserSettings
 
         mock_user = User(
             id=1,
@@ -343,9 +352,14 @@ class TestUserService:
 
     async def test_012_get_user_profile(self, mock_user_repo, mock_session):
         """Проверка получения профиля пользователя"""
-        from app.services.user_service.core.service import UserService
         from app.services.user_service.core.auth_service import AuthService
-        from app.services.user_service.db.models import User, UserSettings, UserLocation, UserRoleEnum
+        from app.services.user_service.core.service import UserService
+        from app.services.user_service.db.models import (
+            User,
+            UserLocation,
+            UserRoleEnum,
+            UserSettings,
+        )
 
         mock_user = User(
             id=1,
@@ -383,8 +397,8 @@ class TestUserService:
 
     async def test_013_update_user_location(self, mock_user_repo, mock_session):
         """Проверка обновления геолокации"""
-        from app.services.user_service.core.service import UserService
         from app.services.user_service.core.auth_service import AuthService
+        from app.services.user_service.core.service import UserService
         from app.services.user_service.db.models import UserLocation
 
         mock_location = UserLocation(
@@ -411,8 +425,8 @@ class TestUserService:
 
     async def test_014_verify_user_exists(self, mock_user_repo):
         """Проверка existence пользователя (для service-to-service)"""
-        from app.services.user_service.core.service import UserService
         from app.services.user_service.core.auth_service import AuthService
+        from app.services.user_service.core.service import UserService
 
         mock_user_repo.exists.return_value = True
 
@@ -448,8 +462,9 @@ class TestDependencies:
 
     async def test_016_verify_service_key_invalid(self):
         """Проверка невалидного API ключа сервиса"""
-        from app.services.user_service.api.deps import verify_service_key
         from fastapi import HTTPException
+
+        from app.services.user_service.api.deps import verify_service_key
 
         with patch('app.services.user_service.api.deps.settings') as mock_settings:
             mock_settings.SERVICE_API_KEY = "valid-service-key"
@@ -463,8 +478,9 @@ class TestDependencies:
 
     async def test_017_verify_service_key_missing(self):
         """Проверка отсутствующего API ключа сервиса"""
-        from app.services.user_service.api.deps import verify_service_key
         from fastapi import HTTPException
+
+        from app.services.user_service.api.deps import verify_service_key
 
         with pytest.raises(HTTPException) as exc_info:
             await verify_service_key(x_service_key=None)

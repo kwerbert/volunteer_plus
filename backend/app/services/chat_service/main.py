@@ -1,16 +1,15 @@
 """Точка входа Chat Service"""
+import logging
+from contextlib import asynccontextmanager
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import logging
-import uvicorn
-from app.services.chat_service.api.internal_router import router as internal_router
-from app.services.chat_service.api.websocket_router import websocket_endpoint
-from fastapi import WebSocket
 
-from app.services.chat_service.config import settings
+from app.services.chat_service.api.internal_router import router as internal_router
 from app.services.chat_service.api.router import router
-from app.services.chat_service.db.session import init_db, engine
+from app.services.chat_service.config import settings
+from app.services.chat_service.db.session import engine, init_db
 
 # Настройка логирования
 logging.basicConfig(
@@ -26,7 +25,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info(f"Starting {settings.SERVICE_NAME} on port {settings.SERVICE_PORT}")
     logger.info(f"Database: {settings.DATABASE_URL}")
-    logger.info(f"Service-to-Service Auth: API Key (X-Service-Key)")
+    logger.info("Service-to-Service Auth: API Key (X-Service-Key)")
 
     await init_db()
     logger.info("Database tables checked/created")
@@ -40,10 +39,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.SERVICE_NAME,
-    description="Микросервис чатов для Volunteer+",
+    description="Микросервис чатов",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
     lifespan=lifespan
 )
 
@@ -60,7 +57,9 @@ app.add_middleware(
 app.include_router(router)
 app.include_router(internal_router)
 
-from app.services.chat_service.api.websocket_router import websocket_endpoint as ws_endpoint
+from app.services.chat_service.api.websocket_router import (
+    websocket_endpoint as ws_endpoint,
+)
 
 app.add_api_websocket_route("/ws/chat/{chat_id}", ws_endpoint)
 

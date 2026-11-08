@@ -2,11 +2,13 @@
 """
 Тесты Analytics Service (pytest версия)
 """
-import pytest
-import sys
 import os
+import sys
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 # ============================================================================
@@ -98,8 +100,8 @@ class TestSchemas:
     def test_002_schemas_validation(self):
         """Проверка валидации основных схем"""
         from app.services.analytics_service.api.schemas import (
+            EventCompleteRequest,
             UserStatsResponse,
-            EventCompleteRequest
         )
         # Тест UserStatsResponse
         stats = UserStatsResponse(
@@ -131,6 +133,7 @@ class TestService:
     async def test_003_user_analytics(self, mock_repository):
         """Проверка расчёта статистики пользователя"""
         from app.services.analytics_service.core.service import AnalyticsService
+
         # ✅ ИСПРАВЛЕНО: правильный импорт модели
         from app.services.analytics_service.db.models import VolunteerStats
         # Настраиваем мок-данные
@@ -190,6 +193,7 @@ class TestMainApp:
     def test_006_app_and_health_endpoint(self, clear_analytics_settings_cache):
         """Проверка создания приложения и availability health endpoint"""
         import importlib
+
         # Очищаем кэш настроек перед импортом main модуля
         from app.services.analytics_service.config import get_settings
         get_settings.cache_clear()
