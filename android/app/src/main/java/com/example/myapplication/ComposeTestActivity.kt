@@ -9,7 +9,6 @@ class ComposeTestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // Переменная для переключения между экранами
             var currentScreen by remember { mutableStateOf("login") }
 
             if (currentScreen == "login") {
