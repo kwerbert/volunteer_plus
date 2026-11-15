@@ -1,13 +1,14 @@
 """Зависимости для Chat Service"""
-from typing import Optional, AsyncGenerator
-from fastapi import Depends, HTTPException, status, Header, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.ext.asyncio import AsyncSession
-import jwt
 import logging
+from typing import AsyncGenerator, Optional
 
-from app.services.chat_service.db.session import get_db_session
+import jwt
+from fastapi import Depends, Header, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.chat_service.config import settings
+from app.services.chat_service.db.session import get_db_session
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)

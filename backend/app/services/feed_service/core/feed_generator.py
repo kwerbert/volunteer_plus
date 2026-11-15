@@ -2,20 +2,25 @@
 Генератор персонализированной ленты.
 ✅ Исправлено: aiohttp.ClientSession внедряется через зависимости, нет утечек.
 """
-from typing import List, Dict, Any, Optional
-from datetime import datetime
 import asyncio
-import aiohttp
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
+import aiohttp
+
+from ..api.schemas import (
+    EventPreview,
+    FeedFilterParams,
+    FeedResponse,
+    FeedSection,
+    FeedSectionType,
+    OrganizationPreview,
+)
 from ..config import Settings
 from ..db.repository import FeedRepository
 from .filter_engine import FilterEngine
 from .recommendation_engine import RecommendationEngine
-from ..api.schemas import (
-    FeedFilterParams, FeedResponse, FeedSection,
-    FeedSectionType, EventPreview, OrganizationPreview
-)
 
 logger = logging.getLogger(__name__)
 

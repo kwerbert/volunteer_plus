@@ -3,7 +3,6 @@
 """
 
 import math
-from typing import Tuple
 
 
 def calculate_distance(

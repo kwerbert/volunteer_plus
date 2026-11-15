@@ -2,10 +2,10 @@
 Модуль управления HTTP-сессиями для микросервиса.
 ✅ Единый пул соединений aiohttp с настройками таймаутов и лимитов.
 """
-import aiohttp
 import logging
 from typing import AsyncGenerator
-from fastapi import Depends
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 

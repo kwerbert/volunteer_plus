@@ -1,13 +1,13 @@
 """
 Система фильтров для мероприятий
 """
-from typing import List, Dict, Any, Optional
-from datetime import datetime
-import math
-from ..config import Settings
-from ..api.schemas import FeedFilterParams
-from ..utils.geolocation import calculate_distance
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from ..api.schemas import FeedFilterParams
+from ..config import Settings
+from ..utils.geolocation import calculate_distance
 
 logger = logging.getLogger(__name__)
 

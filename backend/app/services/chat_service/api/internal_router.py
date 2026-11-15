@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.chat_service.db.session import get_db_session
+
 from app.services.chat_service.config import settings
 from app.services.chat_service.core.chat_lifecycle import ensure_event_chat
-from pydantic import BaseModel
+from app.services.chat_service.db.session import get_db_session
 
-router = APIRouter(prefix="/internal", tags=["internal"])
+router = APIRouter(prefix="/internal", tags=["Internal"])
 
 class EnsureChatRequest(BaseModel):
     user_id: int

@@ -1,14 +1,18 @@
 """Сервис аутентификации: регистрация, логин, управление токенами"""
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
-import logging
-from app.services.user_service.db.repository import UserRepository
-from app.services.user_service.core.security import (
-    hash_password, verify_password,
-    create_access_token, create_refresh_token, decode_token,
-    hash_token_for_blacklist
-)
+
 from app.services.user_service.config import settings
+from app.services.user_service.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_password,
+    hash_token_for_blacklist,
+    verify_password,
+)
+from app.services.user_service.db.repository import UserRepository
 
 logger = logging.getLogger(__name__)
 

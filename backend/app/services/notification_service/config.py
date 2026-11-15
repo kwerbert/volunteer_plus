@@ -1,13 +1,15 @@
-from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from pathlib import Path
-from enum import Enum
 from typing import Optional
-from app.utils.notifications_enums import (
-    Platform,
+
+from pydantic import Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Реэкспорт для тестов и других сервисов (см. app/utils/notifications_enums.py)
+from app.utils.notifications_enums import (  # noqa: F401
     NotificationType,
     Priority,
+    Platform,
     PushStatus,
 )
 

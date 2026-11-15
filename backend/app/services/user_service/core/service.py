@@ -1,10 +1,10 @@
 """Бизнес-логика User Service"""
-from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
 import logging
+from typing import Any, Dict, Optional
+
+from app.services.user_service.core.auth_service import AuthService
 from app.services.user_service.db.models import UserRoleEnum
 from app.services.user_service.db.repository import UserRepository
-from app.services.user_service.core.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 

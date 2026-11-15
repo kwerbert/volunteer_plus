@@ -1,18 +1,19 @@
 # app/services/analytics_service/api/router.py
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
-from app.services.analytics_service.db.session import get_db_session
-from app.services.analytics_service.db.repository import AnalyticsRepository
-from app.services.analytics_service.core.service import AnalyticsService
+
 from app.services.analytics_service.api.schemas import (
-    UserStatsResponse,
-    OrganizationStatsResponse,
-    MonthlyStatsResponse,
     EventCompleteRequest,
     EventCompleteResponse,
-    PreferredRolesResponse
+    MonthlyStatsResponse,
+    OrganizationStatsResponse,
+    PreferredRolesResponse,
+    UserStatsResponse,
 )
+from app.services.analytics_service.core.service import AnalyticsService
+from app.services.analytics_service.db.repository import AnalyticsRepository
+from app.services.analytics_service.db.session import get_db_session
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
 

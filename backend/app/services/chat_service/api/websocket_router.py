@@ -1,12 +1,13 @@
-from fastapi import WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+import logging
+from typing import Optional
+
+from fastapi import Depends, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.chat_service.db.session import get_db_session
-from app.services.chat_service.db.repository import ChatRepository
+
 from app.services.chat_service.core.connection_manager import manager
 from app.services.chat_service.core.security import verify_websocket_token
-from typing import Optional
-import json
-import logging
+from app.services.chat_service.db.repository import ChatRepository
+from app.services.chat_service.db.session import get_db_session
 
 logger = logging.getLogger(__name__)
 

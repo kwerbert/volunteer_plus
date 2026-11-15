@@ -1,8 +1,10 @@
-from sqlalchemy import select, update, and_, func
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
 from datetime import datetime, timezone
-from .models import User, UserSettings, UserLocation, RefreshToken, UserRoleEnum
+from typing import Optional
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .models import RefreshToken, User, UserLocation, UserRoleEnum, UserSettings
 
 
 class UserRepository:

@@ -690,31 +690,70 @@ async def _seed_async(project_dir: Path) -> None:
     """
     # --- тяжёлые импорты (нужны только здесь) ---
     from sqlalchemy.ext.asyncio import (
-        create_async_engine, AsyncSession, async_sessionmaker,
+        AsyncSession,
+        async_sessionmaker,
+        create_async_engine,
     )
 
-    from app.services.user_service.db.models import (
-        Base as UserBase, User, UserSettings, UserLocation, UserRoleEnum,
-    )
-    from app.services.organization_service.db.models import (
-        Base as OrgBase, Organization, Category,
-    )
-    from app.services.event_service.db.models import (
-        Base as EventBase, Event, Participation, ParticipationStatus,
-    )
-    from app.services.subscription_service.db.models import (
-        Base as SubBase, Subscription, SubscriptionLog,
-    )
-    from app.services.chat_service.db.models import (
-        Base as ChatBase, Chat, ChatMember, Message, ChatTypeEnum, MessageTypeEnum,
+    from app.services.analytics_service.db.models import (
+        Base as AnalyticsBase,
     )
     from app.services.analytics_service.db.models import (
-        Base as AnalyticsBase, VolunteerStats, MonthlyStats, PreferredRole,
+        MonthlyStats,
+        PreferredRole,
+        VolunteerStats,
+    )
+    from app.services.chat_service.db.models import (
+        Base as ChatBase,
+    )
+    from app.services.chat_service.db.models import (
+        Chat,
+        ChatMember,
+        ChatTypeEnum,
+        Message,
+        MessageTypeEnum,
+    )
+    from app.services.event_service.db.models import (
+        Base as EventBase,
+    )
+    from app.services.event_service.db.models import (
+        Event,
+        Participation,
+        ParticipationStatus,
+    )
+    from app.services.organization_service.db.models import (
+        Base as OrgBase,
+    )
+    from app.services.organization_service.db.models import (
+        Category,
+        Organization,
+    )
+    from app.services.subscription_service.db.models import (
+        Base as SubBase,
+    )
+    from app.services.subscription_service.db.models import (
+        Subscription,
+        SubscriptionLog,
     )
     from app.services.user_service.core.security import hash_password
+    from app.services.user_service.db.models import (
+        Base as UserBase,
+    )
+    from app.services.user_service.db.models import (
+        User,
+        UserLocation,
+        UserRoleEnum,
+        UserSettings,
+    )
 
-    volunteer_url = f"sqlite+aiosqlite:///{project_dir}/volunteer_plus.db"
-    user_url = f"sqlite+aiosqlite:///{project_dir}/users.db"
+    volunteer_url = os.environ.get(
+        "SEED_VOLUNTEER_DB_URL",
+        f"sqlite+aiosqlite:///{project_dir}/volunteer_plus.db",
+    )
+    user_url = os.environ.get(
+        "SEED_USER_DB_URL",
+        f"sqlite+aiosqlite:///{project_dir}/users.db",
+    )
 
     volunteer_engine = create_async_engine(volunteer_url, echo=False, future=True)
     user_engine = create_async_engine(user_url, echo=False, future=True)
@@ -953,7 +992,7 @@ def cmd_seed(args: argparse.Namespace) -> int:
             "test_volunteer_plus.db",
             "test_org.db",
         ):
-            p = PROJECT_DIR / name
+            p = Path(os.environ.get("SEED_DB_DIR", PROJECT_DIR)) / name
             if p.exists():
                 try:
                     p.unlink()
@@ -983,8 +1022,9 @@ def cmd_seed(args: argparse.Namespace) -> int:
     print("   admin@example.com / admin123")
     print()
     print(f"{YELLOW}💾 Файлы БД:{NC}")
-    print(f"   - {PROJECT_DIR / 'users.db'}")
-    print(f"   - {PROJECT_DIR / 'volunteer_plus.db'}")
+    _seed_dir = Path(os.environ.get("SEED_DB_DIR", PROJECT_DIR))
+    print(f"   - {_seed_dir / 'users.db'}")
+    print(f"   - {_seed_dir / 'volunteer_plus.db'}")
     print()
     print(f"{GREEN}🚀 Запустите: python manage.py run{NC}")
     return 0

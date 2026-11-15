@@ -3,12 +3,13 @@
 Исправлены предупреждения IDE (Unresolved reference) путем перехода
 на patch("module.attr").
 """
-import pytest
-import sys
 import os
+import sys
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # ============================================================================
 # Настройка путей
@@ -137,9 +138,12 @@ class TestConfig:
 
 class TestSchemas:
     def test_005_create_notification_request(self):
-        from app.services.notification_service.api.schemas import CreateNotificationRequest
-        from app.utils.notifications_enums import NotificationType, Priority
         from pydantic import ValidationError
+
+        from app.services.notification_service.api.schemas import (
+            CreateNotificationRequest,
+        )
+        from app.utils.notifications_enums import NotificationType, Priority
         req = CreateNotificationRequest(
             user_id=1, title="Hi", body="Body",
             notification_type=NotificationType.CHAT, priority=Priority.HIGH,
@@ -156,7 +160,9 @@ class TestModels:
 
 class TestNotificationService:
     async def test_017_send_via_websocket_success(self, mock_repo, mock_firebase, mock_ws_manager):
-        from app.services.notification_service.core.notification_service import NotificationService
+        from app.services.notification_service.core.notification_service import (
+            NotificationService,
+        )
         from app.utils.notifications_enums import NotificationType
         mock_repo.create_notification.return_value = make_notification()
         mock_ws_manager.is_user_online.return_value = True
@@ -166,7 +172,9 @@ class TestNotificationService:
         assert result["delivered_via"] == "websocket"
 
     async def test_019_no_tokens(self, mock_repo, mock_firebase, mock_ws_manager):
-        from app.services.notification_service.core.notification_service import NotificationService
+        from app.services.notification_service.core.notification_service import (
+            NotificationService,
+        )
         from app.utils.notifications_enums import NotificationType
         mock_repo.create_notification.return_value = make_notification()
         mock_repo.get_active_tokens.return_value = []
@@ -175,7 +183,9 @@ class TestNotificationService:
         assert result["error"] == "NO_TOKENS"
 
     async def test_021_unregistered_token_is_deactivated(self, mock_repo, mock_firebase, mock_ws_manager):
-        from app.services.notification_service.core.notification_service import NotificationService
+        from app.services.notification_service.core.notification_service import (
+            NotificationService,
+        )
         from app.utils.notifications_enums import NotificationType
         mock_repo.create_notification.return_value = make_notification()
         mock_repo.get_active_tokens.return_value = [make_token(device_token="dead")]
@@ -207,7 +217,9 @@ class TestFirebaseProvider:
                 messaging.Aps = MagicMock()
                 messaging.send = MagicMock(return_value="msg-123")
 
-                from app.services.notification_service.providers.firebase_provider import FirebaseProvider
+                from app.services.notification_service.providers.firebase_provider import (
+                    FirebaseProvider,
+                )
                 FirebaseProvider._initialized = False
                 provider = FirebaseProvider(service_account_path=tmp.name)
 
@@ -241,7 +253,9 @@ class TestFirebaseProvider:
                 messaging.InvalidArgumentError = type("InvalidArgumentError", (Exception,), {})
                 messaging.send = MagicMock(side_effect=MockUnregisteredError("gone"))
 
-                from app.services.notification_service.providers.firebase_provider import FirebaseProvider
+                from app.services.notification_service.providers.firebase_provider import (
+                    FirebaseProvider,
+                )
                 FirebaseProvider._initialized = False
                 provider = FirebaseProvider(service_account_path=tmp.name)
 
@@ -265,6 +279,7 @@ class TestRouterHelpers:
 
     def test_039_verify_service_key_invalid(self):
         from fastapi import HTTPException
+
         from app.services.notification_service.api import router as rmod
         with patch("app.services.notification_service.api.router.settings") as s:
             s.SERVICE_API_KEY = "good-key"

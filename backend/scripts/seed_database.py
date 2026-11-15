@@ -5,24 +5,48 @@
 """
 import asyncio
 import sys
-import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
-
 # Импорты моделей всех сервисов
 from typing import AsyncGenerator
-from app.services.user_service.db.models import Base as UserBase, User, UserSettings, UserLocation, RefreshToken, UserRoleEnum
-from app.services.organization_service.db.models import Base as OrgBase, Organization, Category
-from app.services.event_service.db.models import Base as EventBase, Event, Participation, ParticipationStatus
-from app.services.subscription_service.db.models import Base as SubBase, Subscription, SubscriptionLog
-from app.services.chat_service.db.models import Base as ChatBase, Chat, ChatMember, Message, ChatTypeEnum, MessageTypeEnum
-from app.services.analytics_service.db.models import Base as AnalyticsBase, VolunteerStats, MonthlyStats, PreferredRole
+
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+
+from app.services.analytics_service.db.models import Base as AnalyticsBase
+from app.services.analytics_service.db.models import (
+    MonthlyStats,
+    PreferredRole,
+    VolunteerStats,
+)
+from app.services.chat_service.db.models import Base as ChatBase
+from app.services.chat_service.db.models import (
+    Chat,
+    ChatMember,
+    ChatTypeEnum,
+    Message,
+    MessageTypeEnum,
+)
+from app.services.event_service.db.models import Base as EventBase
+from app.services.event_service.db.models import (
+    Event,
+    Participation,
+    ParticipationStatus,
+)
+from app.services.organization_service.db.models import Base as OrgBase
+from app.services.organization_service.db.models import Category, Organization
+from app.services.subscription_service.db.models import Base as SubBase
+from app.services.subscription_service.db.models import Subscription, SubscriptionLog
 from app.services.user_service.core.security import hash_password
+from app.services.user_service.db.models import Base as UserBase
+from app.services.user_service.db.models import (
+    User,
+    UserLocation,
+    UserRoleEnum,
+    UserSettings,
+)
 
 VOLUNTEER_DB_URL = "sqlite+aiosqlite:///./volunteer_plus.db"
 USER_DB_URL = "sqlite+aiosqlite:///./users.db"

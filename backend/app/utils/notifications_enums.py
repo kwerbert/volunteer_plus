@@ -9,6 +9,7 @@
 """
 from enum import Enum
 
+
 class Platform(str, Enum):
     ANDROID = "ANDROID"
     IOS = "IOS"

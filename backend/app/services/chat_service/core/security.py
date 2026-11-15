@@ -1,6 +1,8 @@
 import jwt
 from jwt.exceptions import InvalidTokenError
+
 from app.services.chat_service.config import settings
+
 
 def verify_websocket_token(token: str) -> int | None:
     """

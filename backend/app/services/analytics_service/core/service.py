@@ -1,17 +1,19 @@
 import logging
-import aiohttp
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, Any
-from app.services.analytics_service.db.repository import AnalyticsRepository
-from app.services.analytics_service.config import settings
+from typing import Any, Dict, Optional
+
+import aiohttp
+
 from app.services.analytics_service.api.schemas import (
-    UserStatsResponse,
-    OrganizationStatsResponse,
-    MonthlyStatsResponse,
     EventCompleteResponse,
+    MonthlyStatsResponse,
+    OrganizationStatsResponse,
+    PreferredRoleResponse,
     PreferredRolesResponse,
-    PreferredRoleResponse
+    UserStatsResponse,
 )
+from app.services.analytics_service.config import settings
+from app.services.analytics_service.db.repository import AnalyticsRepository
 
 logger = logging.getLogger(__name__)
 

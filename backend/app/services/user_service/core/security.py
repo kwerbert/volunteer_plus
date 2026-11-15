@@ -1,9 +1,11 @@
 """Модуль безопасности: хеширование паролей и JWT"""
-from datetime import datetime, timedelta, timezone
-import bcrypt
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+import bcrypt
 import jwt
+
 from app.services.user_service.config import settings
 
 logger = logging.getLogger(__name__)

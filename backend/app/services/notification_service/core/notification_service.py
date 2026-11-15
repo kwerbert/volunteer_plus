@@ -1,16 +1,19 @@
-import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import Optional, List
-from sqlalchemy import update, func
-from app.services.notification_service.db.models import Notification, NotificationToken
+from typing import Optional
+
+from sqlalchemy import func, update
 
 from app.services.notification_service.config import (
-    NotificationType, Priority, PushStatus, settings
+    NotificationType,
+    Priority,
+    PushStatus,
 )
-from app.services.notification_service.db.repository import NotificationRepository
-from app.services.notification_service.providers.firebase_provider import FirebaseProvider
 from app.services.notification_service.core.websocket_manager import WebSocketManager
+from app.services.notification_service.db.models import Notification, NotificationToken
+from app.services.notification_service.db.repository import NotificationRepository
+from app.services.notification_service.providers.firebase_provider import (
+    FirebaseProvider,
+)
 
 logger = logging.getLogger(__name__)
 

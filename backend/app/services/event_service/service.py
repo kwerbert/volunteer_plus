@@ -1,14 +1,21 @@
-from app.services.event_service.core.chat_client import ChatServiceClient
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, func as sqlfunc
-from datetime import datetime, timezone
-from typing import Optional, List
-import uuid
 import logging
+import uuid
+from datetime import datetime, timezone
+from typing import List, Optional
+
+from sqlalchemy import func, select
+from sqlalchemy import func as sqlfunc
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.event_service.core.chat_client import ChatServiceClient
 
 logger = logging.getLogger(__name__)
 
-from app.services.event_service.db.models import Event, Participation, ParticipationStatus
+from app.services.event_service.db.models import (
+    Event,
+    Participation,
+    ParticipationStatus,
+)
 from app.services.event_service.schemas import EventCreate, RegisterRequest
 
 
@@ -96,7 +103,7 @@ class EventService:
                 user_id=data.user_id,
                 organization_id=event.org_id
             )
-        except Exception as e:
+        except Exception:
             # Логируем, но регистрация уже успешна
             logger.exception(f"Chat creation failed for event {event.id}")
 

@@ -1,15 +1,16 @@
-import pytest
-import asyncio
-from httpx import AsyncClient, ASGITransport
-from datetime import datetime, timedelta, timezone
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-import sys
 import os
+import sys
+from datetime import datetime, timedelta, timezone
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.services.event_service.main import app
-from app.services.event_service.db.session import get_db_session, engine
 from app.services.event_service.db.models import Base
+from app.services.event_service.db.session import get_db_session
+from app.services.event_service.main import app
 
 # Тестовая конфигурация бд
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_volunteer_plus.db"
