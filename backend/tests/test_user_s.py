@@ -1,6 +1,7 @@
 """
 Тесты User Service (pytest версия)
 """
+
 import os
 import sys
 from datetime import datetime, timezone
@@ -13,7 +14,7 @@ import pytest
 # ============================================================================
 # Добавляем корень проекта в sys.path (1 уровень вверх от файла теста)
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -29,6 +30,7 @@ def now_utc() -> datetime:
 # ============================================================================
 # FIXTURES
 # ============================================================================
+
 
 @pytest.fixture
 def mock_session():
@@ -67,12 +69,14 @@ def clear_user_settings_cache():
     """Очистка кэша настроек перед тестом"""
     try:
         from app.services.user_service.config import get_settings
+
         get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
     yield
     try:
         from app.services.user_service.config import get_settings
+
         get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
@@ -82,15 +86,19 @@ def clear_user_settings_cache():
 # ТЕСТЫ КОНФИГУРАЦИИ
 # ============================================================================
 
+
 class TestConfig:
     """Тесты конфигурации сервиса"""
 
     def test_001_config_settings(self, clear_user_settings_cache):
         """Проверка загрузки настроек из конфигурации"""
         from app.services.user_service.config import get_settings
+
         settings = get_settings()
 
-        assert settings.SERVICE_PORT == 8008, f"Порт должен быть 8008, получено {settings.SERVICE_PORT}"
+        assert settings.SERVICE_PORT == 8008, (
+            f"Порт должен быть 8008, получено {settings.SERVICE_PORT}"
+        )
         assert settings.SERVICE_NAME == "user_service"
         assert "sqlite+aiosqlite" in settings.DATABASE_URL
         assert settings.JWT_ALGORITHM == "HS256"
@@ -102,6 +110,7 @@ class TestConfig:
     def test_002_config_cors_origins(self, clear_user_settings_cache):
         """Проверка парсинга CORS origins"""
         from app.services.user_service.config import get_settings
+
         settings = get_settings()
 
         origins = settings.cors_origins_list
@@ -113,6 +122,7 @@ class TestConfig:
 # ============================================================================
 # ТЕСТЫ СХЕМ (PYDANTIC V2)
 # ============================================================================
+
 
 class TestSchemas:
     """Тесты Pydantic схем"""
@@ -127,7 +137,7 @@ class TestSchemas:
             email="user@example.com",
             password="secure_password_123",
             full_name="Иван Иванов",
-            phone="+79991234567"
+            phone="+79991234567",
         )
         assert req.email == "user@example.com"
         assert req.full_name == "Иван Иванов"
@@ -146,11 +156,7 @@ class TestSchemas:
 
         from app.services.user_service.api.schemas import LocationRequest
 
-        req = LocationRequest(
-            latitude=55.7558,
-            longitude=37.6173,
-            accuracy=10.5
-        )
+        req = LocationRequest(latitude=55.7558, longitude=37.6173, accuracy=10.5)
         assert req.latitude == 55.7558
         assert req.longitude == 37.6173
 
@@ -169,8 +175,7 @@ class TestSchemas:
         from app.services.user_service.api.schemas import UserSettingsUpdateRequest
 
         req = UserSettingsUpdateRequest(
-            search_radius_km=25,
-            show_only_subscriptions=True
+            search_radius_km=25, show_only_subscriptions=True
         )
         assert req.search_radius_km == 25
 
@@ -186,6 +191,7 @@ class TestSchemas:
 # ============================================================================
 # ТЕСТЫ SECURITY (PASSWORD & JWT)
 # ============================================================================
+
 
 class TestSecurity:
     """Тесты безопасности"""
@@ -236,6 +242,7 @@ class TestSecurity:
 # ТЕСТЫ AUTH SERVICE
 # ============================================================================
 
+
 @pytest.mark.asyncio
 class TestAuthService:
     """Тесты сервиса аутентификации"""
@@ -252,7 +259,7 @@ class TestAuthService:
             full_name="New User",
             role=UserRoleEnum.VOLUNTEER,
             is_active=True,
-            created_at=now_utc()
+            created_at=now_utc(),
         )
         mock_user_repo.get_by_email.return_value = None
         mock_user_repo.create.return_value = mock_user
@@ -262,7 +269,7 @@ class TestAuthService:
         user_data, tokens = await auth_service.register(
             email="newuser@example.com",
             password="secure_password_123",
-            full_name="New User"
+            full_name="New User",
         )
 
         assert user_data["email"] == "newuser@example.com"
@@ -285,14 +292,13 @@ class TestAuthService:
             full_name="Test User",
             role=UserRoleEnum.VOLUNTEER,
             is_active=True,
-            created_at=now_utc()
+            created_at=now_utc(),
         )
         mock_user_repo.get_by_email.return_value = mock_user
 
         auth_service = AuthService(mock_user_repo)
         user_data, tokens = await auth_service.login(
-            email="user@example.com",
-            password=password
+            email="user@example.com", password=password
         )
 
         assert user_data["email"] == "user@example.com"
@@ -312,7 +318,7 @@ class TestAuthService:
             password_hash=hash_password("correct_password"),
             role=UserRoleEnum.VOLUNTEER,
             is_active=True,
-            created_at=now_utc()
+            created_at=now_utc(),
         )
         mock_user_repo.get_by_email.return_value = mock_user
 
@@ -320,8 +326,7 @@ class TestAuthService:
 
         with pytest.raises(ValueError, match="Неверный email или пароль"):
             await auth_service.login(
-                email="user@example.com",
-                password="wrong_password"
+                email="user@example.com", password="wrong_password"
             )
 
         print("✓ Логин с неверным паролем отклоняется корректно")
@@ -346,6 +351,7 @@ class TestAuthService:
 # ТЕСТЫ USER SERVICE
 # ============================================================================
 
+
 @pytest.mark.asyncio
 class TestUserService:
     """Тесты основного сервиса пользователей"""
@@ -368,17 +374,23 @@ class TestUserService:
             role=UserRoleEnum.VOLUNTEER,
             is_active=True,
             is_verified=False,
-            created_at=now_utc()
+            created_at=now_utc(),
         )
         mock_settings = UserSettings(
-            id=1, user_id=1, search_radius_km=10,
-            language="ru", theme="light",
-            updated_at=now_utc()
+            id=1,
+            user_id=1,
+            search_radius_km=10,
+            language="ru",
+            theme="light",
+            updated_at=now_utc(),
         )
         mock_location = UserLocation(
-            id=1, user_id=1, latitude=55.7558, longitude=37.6173,
+            id=1,
+            user_id=1,
+            latitude=55.7558,
+            longitude=37.6173,
             accuracy=10.0,
-            updated_at=now_utc()
+            updated_at=now_utc(),
         )
 
         mock_user_repo.get_by_id.return_value = mock_user
@@ -402,9 +414,12 @@ class TestUserService:
         from app.services.user_service.db.models import UserLocation
 
         mock_location = UserLocation(
-            id=1, user_id=1, latitude=55.7558, longitude=37.6173,
+            id=1,
+            user_id=1,
+            latitude=55.7558,
+            longitude=37.6173,
             accuracy=10.0,
-            updated_at=now_utc()
+            updated_at=now_utc(),
         )
         mock_user_repo.update_location.return_value = mock_location
 
@@ -412,10 +427,7 @@ class TestUserService:
         user_service = UserService(mock_user_repo, auth_service)
 
         location = await user_service.update_user_location(
-            user_id=1,
-            latitude=55.7558,
-            longitude=37.6173,
-            accuracy=10.0
+            user_id=1, latitude=55.7558, longitude=37.6173, accuracy=10.0
         )
 
         assert location["latitude"] == 55.7558
@@ -444,6 +456,7 @@ class TestUserService:
 # ТЕСТЫ DEPENDENCIES (AUTH & SERVICE-KEY)
 # ============================================================================
 
+
 @pytest.mark.asyncio
 class TestDependencies:
     """Тесты зависимостей"""
@@ -452,7 +465,7 @@ class TestDependencies:
         """Проверка валидного API ключа сервиса"""
         from app.services.user_service.api.deps import verify_service_key
 
-        with patch('app.services.user_service.api.deps.settings') as mock_settings:
+        with patch("app.services.user_service.api.deps.settings") as mock_settings:
             mock_settings.SERVICE_API_KEY = "valid-service-key"
 
             result = await verify_service_key(x_service_key="valid-service-key")
@@ -466,7 +479,7 @@ class TestDependencies:
 
         from app.services.user_service.api.deps import verify_service_key
 
-        with patch('app.services.user_service.api.deps.settings') as mock_settings:
+        with patch("app.services.user_service.api.deps.settings") as mock_settings:
             mock_settings.SERVICE_API_KEY = "valid-service-key"
 
             with pytest.raises(HTTPException) as exc_info:
@@ -493,6 +506,7 @@ class TestDependencies:
 # ============================================================================
 # ТЕСТЫ FASTAPI ПРИЛОЖЕНИЯ
 # ============================================================================
+
 
 class TestMainApp:
     """Тесты FastAPI приложения"""
@@ -547,12 +561,7 @@ if __name__ == "__main__":
     print("=" * 80)
     print("ЗАПУСК ТЕСТОВ USER SERVICE (pytest)")
     print("=" * 80)
-    exit_code = pytest.main([
-        __file__,
-        "-v",
-        "--tb=short",
-        "-s"
-    ])
+    exit_code = pytest.main([__file__, "-v", "--tb=short", "-s"])
     print("\n" + "=" * 80)
     print(f"КОД ВЫХОДА: {exit_code}")
     print("=" * 80)

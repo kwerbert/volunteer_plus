@@ -1,4 +1,5 @@
 """Бизнес-логика заявок на роль организатора."""
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -64,7 +65,9 @@ class OrganizerApplicationService:
             )
 
         # 3. Кулдаун после отклонения → 429
-        last_rejected = await self.applications.get_last_rejected_for_user(current_user.id)
+        last_rejected = await self.applications.get_last_rejected_for_user(
+            current_user.id
+        )
         if last_rejected is not None:
             rejected_at = _as_utc(last_rejected.reviewed_at) or _as_utc(
                 last_rejected.created_at
@@ -96,7 +99,11 @@ class OrganizerApplicationService:
                 detail="Заявка уже на рассмотрении",
             )
         await self.session.refresh(application)
-        logger.info("Organizer application %s created by user %s", application.id, current_user.id)
+        logger.info(
+            "Organizer application %s created by user %s",
+            application.id,
+            current_user.id,
+        )
         return application
 
     async def get_my_latest(self, user_id: int) -> OrganizerApplication:
@@ -143,7 +150,7 @@ class OrganizerApplicationService:
         now = datetime.now(timezone.utc)
 
         if new_status == OrganizerApplicationStatus.APPROVED:
-            applicant.role = UserRoleEnum.ORGANIZER   # объект в той же сессии
+            applicant.role = UserRoleEnum.ORGANIZER  # объект в той же сессии
             application.status = OrganizerApplicationStatus.APPROVED
             application.rejection_reason = None
         else:
@@ -157,6 +164,8 @@ class OrganizerApplicationService:
         await self.session.refresh(application)
         logger.info(
             "Organizer application %s -> %s by admin %s",
-            application.id, application.status.value, admin.id,
+            application.id,
+            application.status.value,
+            admin.id,
         )
         return application

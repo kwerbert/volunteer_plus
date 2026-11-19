@@ -2,6 +2,7 @@
 Генератор персонализированной ленты.
 ✅ Исправлено: aiohttp.ClientSession внедряется через зависимости, нет утечек.
 """
+
 import asyncio
 import logging
 from datetime import datetime
@@ -90,16 +91,18 @@ class FeedGenerator:
             has_more=total_events >= filter_params.page_size,
         )
 
-        logger.info(f"Feed generated: {total_events} events in {len(sections)} sections")
+        logger.info(
+            f"Feed generated: {total_events} events in {len(sections)} sections"
+        )
         return feed
 
     async def _get_user_data(self, user_id: int) -> Dict[str, Any]:
         """Получение данных о пользователе из User Service (service-to-service)."""
         try:
             async with self.http_session.get(
-                    f"{self.settings.USER_SERVICE_URL}/api/v1/users/{user_id}/profile",
-                    headers={"X-Service-Key": self.settings.SERVICE_API_KEY},
-                    timeout=aiohttp.ClientTimeout(total=3),
+                f"{self.settings.USER_SERVICE_URL}/api/v1/users/{user_id}/profile",
+                headers={"X-Service-Key": self.settings.SERVICE_API_KEY},
+                timeout=aiohttp.ClientTimeout(total=3),
             ) as response:
                 if response.status == 200:
                     return await response.json()
@@ -147,12 +150,18 @@ class FeedGenerator:
         """
         try:
             params = {
-                "date_from": filter_params.date_from.isoformat() if filter_params.date_from else None,
-                "date_to": filter_params.date_to.isoformat() if filter_params.date_to else None,
+                "date_from": filter_params.date_from.isoformat()
+                if filter_params.date_from
+                else None,
+                "date_to": filter_params.date_to.isoformat()
+                if filter_params.date_to
+                else None,
                 "page_size": filter_params.page_size * 3,
             }
             if subscribed_org_ids:
-                params["org_ids"] = ",".join(map(str, subscribed_org_ids))  # было organization_ids
+                params["org_ids"] = ",".join(
+                    map(str, subscribed_org_ids)
+                )  # было organization_ids
 
             # ✅ Используем внедрённую сессию
             async with self.http_session.get(
@@ -303,7 +312,8 @@ class FeedGenerator:
 
         # Секция 1: От ваших организаций
         subscribed_events = [
-            event for event in events
+            event
+            for event in events
             if event.get("organization_id") in subscribed_org_ids
         ]
         if subscribed_events:
@@ -351,14 +361,14 @@ class FeedGenerator:
         """
         # ✅ Получение времени начала: пробуем start_time, затем start_date
         start_time_val = event.get("start_time") or event.get("start_date")
-        end_time_val = (
-            event.get("end_time") or event.get("end_date") or start_time_val
-        )
+        end_time_val = event.get("end_time") or event.get("end_date") or start_time_val
 
         # Парсинг дат если они в строковом формате
         if isinstance(start_time_val, str):
             try:
-                start_time = datetime.fromisoformat(start_time_val.replace("Z", "+00:00"))
+                start_time = datetime.fromisoformat(
+                    start_time_val.replace("Z", "+00:00")
+                )
             except (ValueError, AttributeError):
                 start_time = datetime.now()
         elif isinstance(start_time_val, datetime):

@@ -11,9 +11,10 @@ from app.services.event_service.db.session import engine, init_db
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
 
 # ДОБАВИТЬ lifespan-менеджер
 @asynccontextmanager
@@ -25,11 +26,12 @@ async def lifespan(app: FastAPI):
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
     await engine.dispose()
 
+
 app = FastAPI(
     title=settings.SERVICE_NAME,
     description="Микросервис управления мероприятиями",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -44,26 +46,23 @@ app.include_router(router)
 
 # УДАЛИТЬ @app.on_event("startup") и @app.on_event("shutdown")
 
+
 @app.get("/")
 async def root():
     return {
         "service": settings.SERVICE_NAME,
         "status": "running",
         "version": "1.0.0",
-        "docs": "/docs"
+        "docs": "/docs",
     }
+
 
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "service": settings.SERVICE_NAME
-    }
+    return {"status": "healthy", "service": settings.SERVICE_NAME}
+
 
 if __name__ == "__main__":
     uvicorn.run(
-        "app.services.event_service.main:app",
-        host="0.0.0.0",
-        port=8003,
-        reload=True
+        "app.services.event_service.main:app", host="0.0.0.0", port=8003, reload=True
     )

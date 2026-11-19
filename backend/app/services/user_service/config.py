@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # В production переменные должны быть установлены явно, fallback-значения только для DEV
     JWT_SECRET_KEY: str = Field(
         default="dev-insecure-secret-key-change-in-production",
-        description="JWT secret key (env: USER_JWT_SECRET_KEY)"
+        description="JWT secret key (env: USER_JWT_SECRET_KEY)",
     )
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
@@ -25,19 +25,21 @@ class Settings(BaseSettings):
     PASSWORD_HASH_COST: int = 12
     SERVICE_API_KEY: str = Field(
         default="dev-insecure-service-key-change-in-production",
-        description="Service-to-service API key (env: USER_SERVICE_API_KEY)"
+        description="Service-to-service API key (env: USER_SERVICE_API_KEY)",
     )
-    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://10.0.2.2:3000"
+    CORS_ORIGINS: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,http://10.0.2.2:3000"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
-        env_prefix="USER_"
+        env_prefix="USER_",
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_secrets_for_production(self):
         """Проверка, что секретные ключи заменены в production-режиме"""
         if not self.DEBUG:
@@ -53,11 +55,14 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        return [
+            origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()
+        ]
 
     @property
     def db_path(self) -> Path:
         return Path(self.DATABASE_URL.replace("sqlite+aiosqlite:///", ""))
+
 
 @lru_cache()
 def get_settings() -> Settings:
@@ -66,5 +71,6 @@ def get_settings() -> Settings:
     if db_path.parent and not db_path.parent.exists():
         db_path.parent.mkdir(parents=True, exist_ok=True)
     return settings
+
 
 settings = get_settings()

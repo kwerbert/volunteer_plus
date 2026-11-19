@@ -1,10 +1,10 @@
 """Бизнес-логика User Service"""
-import logging
-from typing import Optional, Dict, Any
-from datetime import datetime, timezone
 
-from app.services.user_service.db.repository import UserRepository
+import logging
+from typing import Any, Dict, Optional
+
 from app.services.user_service.core.auth_service import AuthService
+from app.services.user_service.db.repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ class UserService:
 
     # === Профиль пользователя ===
     async def get_user_profile(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """Получение полного профиля пользователя"""
+        """Полный профиль: пользователь + настройки + геолокация (вложенно)."""
         user = await self.user_repo.get_by_id(user_id)
         if not user:
             return None
@@ -25,50 +25,20 @@ class UserService:
         location = await self.user_repo.get_location(user_id)
 
         return {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "phone": user.phone,
-            "role": user.role,
-            "is_active": user.is_active,
-            "is_verified": user.is_verified,
-            "is_admin": user.is_admin,  # ✅ ДОБАВИТЬ
-            "created_at": user.created_at,
-            "last_login": user.last_login,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "full_name": user.full_name,
+                "phone": user.phone,
+                "role": user.role,
+                "is_active": user.is_active,
+                "is_verified": user.is_verified,
+                "is_admin": user.is_admin,
+                "created_at": user.created_at,
+                "last_login": user.last_login,
+            },
             "settings": self._settings_to_dict(settings),
             "location": self._location_to_dict(location),
-        }
-
-    async def update_user_profile(
-            self, user_id: int, update_data: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        """Обновление профиля пользователя"""
-        user = await self.user_repo.get_by_id(user_id)
-        if not user:
-            return None
-
-        # Белый список изменяемых полей
-        allowed: Dict[str, Any] = {}
-        for field in ("full_name", "phone"):
-            if field in update_data:
-                allowed[field] = update_data[field]
-
-        if allowed:
-            user = await self.user_repo.update(user_id, **allowed)
-            if not user:
-                return None
-
-        return {
-            "id": user.id,
-            "email": user.email,
-            "full_name": user.full_name,
-            "phone": user.phone,
-            "role": user.role,
-            "is_active": user.is_active,
-            "is_verified": user.is_verified,
-            "is_admin": user.is_admin,
-            "created_at": user.created_at,
-            "last_login": user.last_login,
         }
 
     # === Геолокация ===
@@ -136,7 +106,6 @@ class UserService:
             "location_lon": location.longitude if location else None,
             "settings": self._settings_to_dict(settings),
         }
-
 
     # === Вспомогательные методы ===
     def _settings_to_dict(self, settings) -> Optional[Dict[str, Any]]:

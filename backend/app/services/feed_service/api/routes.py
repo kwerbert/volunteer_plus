@@ -2,6 +2,7 @@
 API Routes для Feed Service.
 ✅ Внедрение зависимостей: repository, http_session, feed_generator.
 """
+
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -65,6 +66,7 @@ async def debug_feed(
 ):
     """Debug-эндпоинт для проверки работы генератора."""
     from ..api.schemas import FeedFilterParams
+
     filter_params = FeedFilterParams()
 
     feed = await feed_generator.generate_feed(

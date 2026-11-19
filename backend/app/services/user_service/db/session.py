@@ -1,4 +1,5 @@
 """Сессии БД User Service"""
+
 from typing import AsyncGenerator
 
 from sqlalchemy import inspect, text
@@ -28,6 +29,7 @@ async def _migrate_roles_and_admin_flag(conn) -> None:
     1) добавляет users.is_admin, если колонки нет;
     2) старый role='ADMIN' -> role='VOLUNTEER' + is_admin=1.
     """
+
     def _columns(sync_conn):
         return [c["name"] for c in inspect(sync_conn).get_columns("users")]
 

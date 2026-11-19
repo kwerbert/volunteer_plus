@@ -11,12 +11,14 @@ class UserStatsBase(BaseModel):
     total_events: int = 0
     organizations_count: int = 0
 
+
 class UserStatsResponse(UserStatsBase):
     id: int
     last_activity: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
+
 
 class OrganizationStats(BaseModel):
     organization_id: int
@@ -25,17 +27,20 @@ class OrganizationStats(BaseModel):
     events_completed: int
     role: Optional[str] = None
 
+
 class OrganizationStatsResponse(BaseModel):
     user_id: int
     organizations: List[OrganizationStats]
     total_organizations: int
     generated_at: datetime = Field(default_factory=datetime.now)
 
+
 class MonthlyStat(BaseModel):
     year: int
     month: int
     hours_worked: float
     events_completed: int
+
 
 class MonthlyStatsResponse(BaseModel):
     user_id: int
@@ -44,10 +49,12 @@ class MonthlyStatsResponse(BaseModel):
     total_events: int
     generated_at: datetime = Field(default_factory=datetime.now)
 
+
 class EventCompleteRequest(BaseModel):
     user_id: int
     hours_worked: Optional[float] = None
     role: Optional[str] = None
+
 
 class EventCompleteResponse(BaseModel):
     success: bool
@@ -56,17 +63,20 @@ class EventCompleteResponse(BaseModel):
     hours_added: float
     message: str
 
+
 class PreferredRoleResponse(BaseModel):
     role: str
     score: float
     events_count: int
     percentage: float
 
+
 class PreferredRolesResponse(BaseModel):
     user_id: int
     roles: List[PreferredRoleResponse]
     primary_role: Optional[str] = None
     generated_at: datetime = Field(default_factory=datetime.now)
+
 
 class ErrorResponse(BaseModel):
     detail: str

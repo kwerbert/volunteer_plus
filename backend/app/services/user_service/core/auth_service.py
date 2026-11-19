@@ -1,4 +1,5 @@
 """Сервис аутентификации: регистрация, логин, управление токенами"""
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
@@ -24,11 +25,11 @@ class AuthService:
         self.user_repo = user_repo
 
     async def register(
-            self,
-            email: str,
-            password: str,
-            full_name: Optional[str] = None,
-            phone: Optional[str] = None
+        self,
+        email: str,
+        password: str,
+        full_name: Optional[str] = None,
+        phone: Optional[str] = None,
     ) -> Tuple[dict, dict]:
         """
         Регистрация нового пользователя
@@ -43,10 +44,7 @@ class AuthService:
         # Хеширование пароля и создание пользователя
         password_hash = hash_password(password)
         user = await self.user_repo.create(
-            email=email,
-            password_hash=password_hash,
-            full_name=full_name,
-            phone=phone
+            email=email, password_hash=password_hash, full_name=full_name, phone=phone
         )
 
         # Создание настроек по умолчанию
@@ -120,14 +118,16 @@ class AuthService:
         token_data = {
             "user_id": user.id,
             "email": user.email,
-            "role": user.role.value if hasattr(user.role, 'value') else user.role
+            "role": user.role.value if hasattr(user.role, "value") else user.role,
         }
         access_token = create_access_token(token_data)
         refresh_token = create_refresh_token(token_data)
 
         # Сохранение хеша refresh токена
         token_hash = hash_token_for_blacklist(refresh_token)
-        expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
         await self.user_repo.create_refresh_token(user.id, token_hash, expires_at)
 
         return {
@@ -135,7 +135,7 @@ class AuthService:
             "refresh_token": refresh_token,
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user_id": user.id  # ДОБАВЛЕНО: user_id в ответе
+            "user_id": user.id,  # ДОБАВЛЕНО: user_id в ответе
         }
 
     def _user_to_dict(self, user) -> dict:

@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -123,6 +123,7 @@ class ErrorResponse(BaseModel):
 
 # === Organizer Applications ===
 
+
 class OrganizerApplicationStatusEnum(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
@@ -131,6 +132,7 @@ class OrganizerApplicationStatusEnum(str, Enum):
 
 class OrganizerApplicationReviewRequest(BaseModel):
     """Решение админа. status — только approved/rejected."""
+
     status: Literal[
         OrganizerApplicationStatusEnum.APPROVED,
         OrganizerApplicationStatusEnum.REJECTED,
@@ -154,6 +156,7 @@ class OrganizerApplicationResponse(BaseModel):
 
 class OrganizerApplicationCooldownError(BaseModel):
     """Тело detail для 429 (документация клиента)."""
+
     message: str
     rejected_at: datetime
     retry_at: datetime

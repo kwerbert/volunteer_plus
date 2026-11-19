@@ -25,7 +25,7 @@ class OrganizationService:
             owner_user_id=data.owner_user_id,
             is_verified=False,
             rating=0.0,
-            is_active=True
+            is_active=True,
         )
         self.db.add(new_org)
         await self.db.commit()
@@ -33,9 +33,7 @@ class OrganizationService:
         return new_org
 
     async def get_list(
-            self,
-            category_id: Optional[int] = None,
-            verified: Optional[bool] = None
+        self, category_id: Optional[int] = None, verified: Optional[bool] = None
     ) -> List[Organization]:
         query = select(Organization)
         if category_id is not None:

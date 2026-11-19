@@ -35,6 +35,8 @@ class Participation(Base):
     event_id = Column(Integer, nullable=False)
     user_id = Column(Integer, nullable=False)
     role_id = Column(Integer, nullable=True)
-    status = Column(SQLEnum(ParticipationStatus), default=ParticipationStatus.REGISTERED)
+    status = Column(
+        SQLEnum(ParticipationStatus), default=ParticipationStatus.REGISTERED
+    )
     registered_at = Column(DateTime, default=datetime.utcnow)
     checked_in_at = Column(DateTime, nullable=True)

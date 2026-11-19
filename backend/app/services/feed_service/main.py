@@ -7,7 +7,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+)
 
 from app.services.feed_service.api.routes import router as api_router
 from app.services.feed_service.config import settings
@@ -16,8 +18,7 @@ from app.services.feed_service.db.session import engine, init_db
 
 # Настройка логирования
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ app = FastAPI(
     title=settings.SERVICE_NAME,
     description="Микросервис главной страницы: персонализированная лента мероприятий",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # CORS Middleware
@@ -87,7 +88,7 @@ async def root():
         "service": settings.SERVICE_NAME,
         "status": "running",
         "version": __version__,
-        "docs": "/docs"
+        "docs": "/docs",
     }
 
 
@@ -96,7 +97,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": settings.SERVICE_NAME,
-        "version": __version__
+        "version": __version__,
     }
 
 
@@ -105,5 +106,5 @@ if __name__ == "__main__":
         "app.services.feed_service.main:app",
         host="0.0.0.0",
         port=settings.SERVICE_PORT,
-        reload=settings.DEBUG
+        reload=settings.DEBUG,
     )

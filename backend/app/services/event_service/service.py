@@ -8,15 +8,14 @@ from sqlalchemy import func as sqlfunc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.event_service.core.chat_client import ChatServiceClient
-
-logger = logging.getLogger(__name__)
-
 from app.services.event_service.db.models import (
     Event,
     Participation,
     ParticipationStatus,
 )
 from app.services.event_service.schemas import EventCreate, RegisterRequest
+
+logger = logging.getLogger(__name__)
 
 
 class EventService:
@@ -25,10 +24,10 @@ class EventService:
         self.chat_client = ChatServiceClient()
 
     async def get_events(
-            self,
-            org_ids: Optional[List[int]] = None,
-            date_from: Optional[datetime] = None,
-            limit: Optional[int] = None
+        self,
+        org_ids: Optional[List[int]] = None,
+        date_from: Optional[datetime] = None,
+        limit: Optional[int] = None,
     ):
         query = select(Event)
         if org_ids:
@@ -54,14 +53,16 @@ class EventService:
             end_date=event_data.end_date,
             location=event_data.location,
             max_participants=event_data.max_participants,
-            qr_secret=str(uuid.uuid4())
+            qr_secret=str(uuid.uuid4()),
         )
         self.db.add(new_event)
         await self.db.commit()
         await self.db.refresh(new_event)
         return new_event
 
-    async def register_user(self, event_id: int, data: RegisterRequest) -> Participation:
+    async def register_user(
+        self, event_id: int, data: RegisterRequest
+    ) -> Participation:
         event = await self.db.get(Event, event_id)
         if not event:
             raise ValueError("Событие не найдено")
@@ -69,7 +70,7 @@ class EventService:
         count_res = await self.db.execute(
             select(func.count(Participation.id)).where(
                 Participation.event_id == event_id,
-                Participation.status != ParticipationStatus.CANCELLED
+                Participation.status != ParticipationStatus.CANCELLED,
             )
         )
         current_count = count_res.scalar() or 0
@@ -80,16 +81,14 @@ class EventService:
             select(Participation).where(
                 Participation.event_id == event_id,
                 Participation.user_id == data.user_id,
-                Participation.status != ParticipationStatus.CANCELLED
+                Participation.status != ParticipationStatus.CANCELLED,
             )
         )
         if existing.scalar_one_or_none():
             raise ValueError("Пользователь уже зарегистрирован")
 
         participation = Participation(
-            event_id=event_id,
-            user_id=data.user_id,
-            role_id=data.role_id
+            event_id=event_id, user_id=data.user_id, role_id=data.role_id
         )
         self.db.add(participation)
         await self.db.commit()
@@ -99,9 +98,7 @@ class EventService:
         # Но для простоты выполним синхронно, с обработкой ошибок
         try:
             await self.chat_client.ensure_event_chat(
-                event_id=event.id,
-                user_id=data.user_id,
-                organization_id=event.org_id
+                event_id=event.id, user_id=data.user_id, organization_id=event.org_id
             )
         except Exception:
             # Логируем, но регистрация уже успешна
@@ -109,7 +106,9 @@ class EventService:
 
         return participation
 
-    async def check_in(self, event_id: int, user_id: int, qr_code: str) -> Participation:
+    async def check_in(
+        self, event_id: int, user_id: int, qr_code: str
+    ) -> Participation:
         event = await self.db.get(Event, event_id)
         if not event:
             raise ValueError("Событие не найдено")
@@ -118,8 +117,7 @@ class EventService:
 
         participation = await self.db.execute(
             select(Participation).where(
-                Participation.event_id == event_id,
-                Participation.user_id == user_id
+                Participation.event_id == event_id, Participation.user_id == user_id
             )
         )
         part = participation.scalar_one_or_none()
@@ -135,10 +133,10 @@ class EventService:
         return part
 
     async def get_popular_events(
-            self,
-            exclude_org_ids: Optional[List[int]] = None,
-            limit: int = 20,
-            sort: Optional[str] = None,
+        self,
+        exclude_org_ids: Optional[List[int]] = None,
+        limit: int = 20,
+        sort: Optional[str] = None,
     ) -> List[Event]:
         """
         Популярные мероприятия.
@@ -158,7 +156,9 @@ class EventService:
             )
             stmt = (
                 select(Event)
-                .outerjoin(participation_count, participation_count.c.event_id == Event.id)
+                .outerjoin(
+                    participation_count, participation_count.c.event_id == Event.id
+                )
                 .order_by(
                     sqlfunc.coalesce(participation_count.c.cnt, 0).desc(),
                     Event.start_date.asc(),

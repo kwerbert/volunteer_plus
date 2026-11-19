@@ -1,19 +1,19 @@
 """Зависимости для User Service"""
+
 import logging
 from typing import AsyncGenerator, Optional
 
-from fastapi import Depends, HTTPException, Header, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
+from fastapi import Depends, Header, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import jwt
-
-from app.services.user_service.db.session import async_session_maker
-from app.services.user_service.db.repository import UserRepository
-from app.services.user_service.db.models import User, UserRoleEnum
-from app.services.user_service.core.service import UserService
-from app.services.user_service.core.auth_service import AuthService
 from app.services.user_service.config import get_settings
+from app.services.user_service.core.auth_service import AuthService
+from app.services.user_service.core.service import UserService
+from app.services.user_service.db.models import User, UserRoleEnum
+from app.services.user_service.db.repository import UserRepository
+from app.services.user_service.db.session import async_session_maker
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
@@ -114,13 +114,24 @@ async def require_organizer(current_user: User = Depends(get_current_user)) -> U
 # === Service-to-Service Authentication ===
 async def verify_service_key(
     x_service_key: str = Header(None),
-) -> None:
-    """Проверяет API ключ для межсервисного взаимодействия"""
-    if x_service_key != settings.SERVICE_API_KEY:
+) -> bool:
+    """Проверяет API ключ для межсервисного взаимодействия.
+    Контракт (зафиксирован тестами 015/016/017):
+      * ключ отсутствует          -> 401;
+      * ключ есть, но неверный    -> 403;
+      * ключ верный               -> True.
+    """
+    if x_service_key is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Service key отсутствует",
+        )
+    if x_service_key != settings.SERVICE_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="Невалидный service key",
         )
+    return True
 
 
 # === Проверка владения ресурсом ===

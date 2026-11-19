@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     # 🔐 Service-to-Service auth — загружается из переменных окружения
     SERVICE_API_KEY: str = Field(
         default="dev-insecure-service-key-change-in-production",
-        description="Service-to-service API key (env: SUBSCRIPTION_SERVICE_API_KEY)"
+        description="Service-to-service API key (env: SUBSCRIPTION_SERVICE_API_KEY)",
     )
 
     model_config = SettingsConfigDict(
@@ -28,10 +28,10 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
-        env_prefix="SUBSCRIPTION_"
+        env_prefix="SUBSCRIPTION_",
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_secrets_for_production(self):
         """Проверка, что секретные ключи заменены в production-режиме"""
         if not self.DEBUG:
@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     def db_path(self) -> Path:
         return Path(self.DATABASE_URL.replace("sqlite+aiosqlite:///", ""))
 
+
 @lru_cache()
 def get_settings() -> Settings:
     settings = Settings()
@@ -52,5 +53,6 @@ def get_settings() -> Settings:
     if db_path.parent and not db_path.parent.exists():
         db_path.parent.mkdir(parents=True, exist_ok=True)
     return settings
+
 
 settings = get_settings()

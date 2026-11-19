@@ -2,6 +2,7 @@
 Модуль управления HTTP-сессиями для микросервиса.
 ✅ Единый пул соединений aiohttp с настройками таймаутов и лимитов.
 """
+
 import logging
 from typing import AsyncGenerator
 
@@ -17,14 +18,14 @@ class HTTPClientManager:
     """
 
     def __init__(
-            self,
-            connection_limit: int = 100,
-            ttl_dns_cache: int = 300,
-            use_dns_cache: bool = True,
-            keepalive_timeout: float = 30.0,
-            request_timeout: float = 10.0,
-            sock_connect_timeout: float = 5.0,
-            sock_read_timeout: float = 10.0,
+        self,
+        connection_limit: int = 100,
+        ttl_dns_cache: int = 300,
+        use_dns_cache: bool = True,
+        keepalive_timeout: float = 30.0,
+        request_timeout: float = 10.0,
+        sock_connect_timeout: float = 5.0,
+        sock_read_timeout: float = 10.0,
     ):
         self.connection_limit = connection_limit
         self.ttl_dns_cache = ttl_dns_cache
@@ -91,6 +92,7 @@ http_client_manager = HTTPClientManager()
 
 
 # === FastAPI Dependencies ===
+
 
 async def get_http_session() -> AsyncGenerator[aiohttp.ClientSession, None]:
     """

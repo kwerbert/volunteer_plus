@@ -1,14 +1,17 @@
 """Точка входа User Service"""
-from contextlib import asynccontextmanager
 
 import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.services.user_service.api.organizer_router import (
+    router as organizer_router,  # ✅ ДОБАВИТЬ
+)
 from app.services.user_service.api.router import router
-from app.services.user_service.api.organizer_router import router as organizer_router  # ✅ ДОБАВИТЬ
 from app.services.user_service.config import get_settings
-from app.services.user_service.db.session import init_db, engine
+from app.services.user_service.db.session import engine, init_db
 
 logger = logging.getLogger(__name__)
 

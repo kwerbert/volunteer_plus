@@ -44,7 +44,7 @@ app = FastAPI(
     title=settings.SERVICE_NAME,
     description="Микросервис уведомлений (Push + WebSocket)",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Include router
@@ -54,11 +54,8 @@ app.include_router(router)
 # Root endpoint
 @app.get("/")
 async def root():
-    return {
-        "service": settings.SERVICE_NAME,
-        "docs": "/docs",
-        "health": "/health"
-    }
+    return {"service": settings.SERVICE_NAME, "docs": "/docs", "health": "/health"}
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -67,6 +64,7 @@ async def health_check():
         service=settings.SERVICE_NAME,
         timestamp=datetime.now(timezone.utc),
     )
+
 
 # Middleware для логирования (опционально)
 # @app.middleware("http")

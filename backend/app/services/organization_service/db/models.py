@@ -14,6 +14,7 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
+
 class Organization(Base):
     __tablename__ = "organizations"
     id = Column(Integer, primary_key=True, index=True)
@@ -24,7 +25,10 @@ class Organization(Base):
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     owner_user_id = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
 
 class Category(Base):
     __tablename__ = "categories"

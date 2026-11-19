@@ -1,30 +1,27 @@
 """API эндпоинты User Service"""
-from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.user_service.api.deps import (
-    get_db,
-    get_current_user_id,
-    verify_service_key,
-    require_same_user,
-    get_user_service,
     get_auth_service,
+    get_current_user_id,
+    get_user_service,
+    require_same_user,
+    verify_service_key,
 )
 from app.services.user_service.api.schemas import (
-    RegisterRequest,
-    LoginRequest,
-    RefreshRequest,
-    TokenResponse,
-    UserResponse,
-    UserUpdateRequest,
     LocationRequest,
     LocationResponse,
+    LoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserProfileForFeedResponse,
+    UserResponse,
     UserSettingsResponse,
     UserSettingsUpdateRequest,
+    UserUpdateRequest,
     UserVerifyResponse,
-    UserProfileForFeedResponse,
-    ErrorResponse,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -32,7 +29,10 @@ router = APIRouter(prefix="/api/v1")
 
 # === ПУБЛИЧНЫЕ ЭНДПОИНТЫ ===
 
-@router.post("/auth/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "/auth/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
+)
 async def register(
     request: RegisterRequest,
     auth_service=Depends(get_auth_service),
@@ -93,24 +93,33 @@ async def logout(
 
 # === ЗАЩИЩЁННЫЕ ЭНДПОИНТЫ ===
 
+
 @router.get("/users/me", response_model=UserResponse)
-async def get_current_user(
+async def get_current_user_profile(
     user_id: int = Depends(get_current_user_id),
     user_service=Depends(get_user_service),
 ):
-    """Получение профиля текущего пользователя"""
     profile = await user_service.get_user_profile(user_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
-    return profile
+    return profile["user"]
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
-async def get_user(
+async def get_user(user_id: int, user_service=Depends(get_user_service)):
+    profile = await user_service.get_user_profile(user_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    return profile["user"]
+
+
+@router.get("/users/{user_id}/profile")
+async def get_user_full_profile(
     user_id: int,
     user_service=Depends(get_user_service),
 ):
-    """Получение профиля пользователя по ID"""
+    """Полный профиль: user + settings + location (вложенно).
+    Без response_model: структура вложенная, отдельной схемы под неё нет."""
     profile = await user_service.get_user_profile(user_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
@@ -182,6 +191,7 @@ async def update_settings(
 
 
 # === SERVICE-TO-SERVICE ЭНДПОИНТЫ ===
+
 
 @router.get("/users/verify/{user_id}", response_model=UserVerifyResponse)
 async def verify_user(

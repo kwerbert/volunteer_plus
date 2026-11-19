@@ -22,11 +22,11 @@ class RecommendationEngine:
         self.settings = settings
 
     async def get_recommendations(
-            self,
-            user_id: int,
-            exclude_org_ids: List[int],
-            filter_params: FeedFilterParams,
-            user_location: Dict[str, Optional[float]]
+        self,
+        user_id: int,
+        exclude_org_ids: List[int],
+        filter_params: FeedFilterParams,
+        user_location: Dict[str, Optional[float]],
     ) -> List[EventPreview]:
         recommendations: List[EventPreview] = []
         try:
@@ -34,7 +34,7 @@ class RecommendationEngine:
             popular_events = await self._fetch_popular_events(
                 exclude_org_ids=exclude_org_ids,
                 preferred_roles=preferred_roles,
-                filter_params=filter_params
+                filter_params=filter_params,
             )
 
             for event in popular_events[:5]:
@@ -47,41 +47,50 @@ class RecommendationEngine:
 
                 if isinstance(start_time, str):
                     try:
-                        start_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                        start_time = datetime.fromisoformat(
+                            start_time.replace("Z", "+00:00")
+                        )
                     except (ValueError, AttributeError):
                         start_time = datetime.now()
                 if isinstance(end_time, str):
                     try:
-                        end_time = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+                        end_time = datetime.fromisoformat(
+                            end_time.replace("Z", "+00:00")
+                        )
                     except (ValueError, AttributeError):
                         end_time = start_time
 
-                recommendations.append(EventPreview(
-                    id=event.get("id", 0),
-                    title=event.get("title", "Без названия"),
-                    organization=OrganizationPreview(
-                        id=org_id or 0,
-                        name=event.get("organization_name", "Организация"),
-                        logo_url=event.get("organization_logo"),
-                        rating=float(event.get("organization_rating", 0.0)),
-                        verified=bool(event.get("organization_verified", False)),
-                        category_id=event.get("category_id"),
-                    ),
-                    description_preview=(
-                        event.get("description", "")[:100]
-                        if event.get("description") else None
-                    ),
-                    start_time=start_time,
-                    end_time=end_time,
-                    location_lat=event.get("location_lat"),
-                    location_lon=event.get("location_lon"),
-                    distance_km=event.get("distance_km"),
-                    required_role_id=event.get("required_role_id"),
-                    max_participants=event.get("max_participants"),
-                    registered_count=event.get("registered_count", 0),
-                ))
+                recommendations.append(
+                    EventPreview(
+                        id=event.get("id", 0),
+                        title=event.get("title", "Без названия"),
+                        organization=OrganizationPreview(
+                            id=org_id or 0,
+                            name=event.get("organization_name", "Организация"),
+                            logo_url=event.get("organization_logo"),
+                            rating=float(event.get("organization_rating", 0.0)),
+                            verified=bool(event.get("organization_verified", False)),
+                            category_id=event.get("category_id"),
+                        ),
+                        description_preview=(
+                            event.get("description", "")[:100]
+                            if event.get("description")
+                            else None
+                        ),
+                        start_time=start_time,
+                        end_time=end_time,
+                        location_lat=event.get("location_lat"),
+                        location_lon=event.get("location_lon"),
+                        distance_km=event.get("distance_km"),
+                        required_role_id=event.get("required_role_id"),
+                        max_participants=event.get("max_participants"),
+                        registered_count=event.get("registered_count", 0),
+                    )
+                )
 
-            logger.info(f"Generated {len(recommendations)} recommendations for user {user_id}")
+            logger.info(
+                f"Generated {len(recommendations)} recommendations for user {user_id}"
+            )
         except Exception as e:
             logger.error(f"Error generating recommendations: {e}", exc_info=True)
 
@@ -91,7 +100,7 @@ class RecommendationEngine:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                        f"{self.settings.ANALYTICS_SERVICE_URL}/api/v1/analytics/users/{user_id}/preferred-roles"
+                    f"{self.settings.ANALYTICS_SERVICE_URL}/api/v1/analytics/users/{user_id}/preferred-roles"
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -102,10 +111,10 @@ class RecommendationEngine:
             return []
 
     async def _fetch_popular_events(
-            self,
-            exclude_org_ids: List[int],
-            preferred_roles: List[str],
-            filter_params: FeedFilterParams
+        self,
+        exclude_org_ids: List[int],
+        preferred_roles: List[str],
+        filter_params: FeedFilterParams,
     ) -> List[Dict[str, Any]]:
         try:
             params: Dict[str, Any] = {"page_size": 20, "sort": "popularity"}
@@ -120,7 +129,9 @@ class RecommendationEngine:
                 async with session.get(url, params=params) as response:
                     if response.status == 200:
                         data = await response.json()
-                        events = data.get("events", []) if isinstance(data, dict) else data
+                        events = (
+                            data.get("events", []) if isinstance(data, dict) else data
+                        )
 
                         # ✅ Нормализуем org_id → organization_id
                         for ev in events:

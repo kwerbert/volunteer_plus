@@ -16,10 +16,13 @@ from app.services.organization_service.service import OrganizationService
 
 router = APIRouter(prefix="/api/v1/organizations", tags=["Organizations"])
 
+
 @router.post("", response_model=OrganizationResponse, status_code=201)
 async def create_organization(
     data: OrganizationCreate,
-    db: AsyncSession = Depends(get_db_session)  # ← теперь соответствует тому, что в тестах
+    db: AsyncSession = Depends(
+        get_db_session
+    ),  # ← теперь соответствует тому, что в тестах
 ):
     service = OrganizationService(db)
     try:
@@ -28,15 +31,17 @@ async def create_organization(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
 @router.get("", response_model=List[OrganizationResponse])
 async def list_organizations(
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
     verified: Optional[bool] = Query(None, description="Filter by verification status"),
-    db: AsyncSession = Depends(get_db_session)  # ← везде заменили
+    db: AsyncSession = Depends(get_db_session),  # ← везде заменили
 ):
     service = OrganizationService(db)
     orgs = await service.get_list(category_id=category_id, verified=verified)
     return orgs
+
 
 @router.get("/{org_id}", response_model=OrganizationResponse)
 async def get_organization(org_id: int, db: AsyncSession = Depends(get_db_session)):
@@ -46,11 +51,10 @@ async def get_organization(org_id: int, db: AsyncSession = Depends(get_db_sessio
         raise HTTPException(status_code=404, detail="Organization not found")
     return org
 
+
 @router.post("/{org_id}/verify", response_model=OrganizationResponse)
 async def verify_organization(
-    org_id: int,
-    data: OrganizationVerify,
-    db: AsyncSession = Depends(get_db_session)
+    org_id: int, data: OrganizationVerify, db: AsyncSession = Depends(get_db_session)
 ):
     service = OrganizationService(db)
     try:

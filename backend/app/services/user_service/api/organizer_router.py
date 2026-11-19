@@ -1,4 +1,5 @@
 """API эндпоинты заявок на роль организатора."""
+
 import logging
 
 from fastapi import APIRouter, Depends, status
@@ -20,7 +21,9 @@ from app.services.user_service.db.models import OrganizerApplicationStatus, User
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/organizer-applications", tags=["Organizer Applications"])
+router = APIRouter(
+    prefix="/api/v1/organizer-applications", tags=["Organizer Applications"]
+)
 
 
 def get_application_service(
@@ -29,7 +32,9 @@ def get_application_service(
     return OrganizerApplicationService(db)
 
 
-@router.post("", response_model=OrganizerApplicationResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=OrganizerApplicationResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_application(
     current_user: User = Depends(get_current_user),
     service: OrganizerApplicationService = Depends(get_application_service),

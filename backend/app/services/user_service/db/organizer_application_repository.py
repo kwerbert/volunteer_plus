@@ -1,5 +1,5 @@
 """Репозиторий заявок на роль организатора."""
-from datetime import datetime
+
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -25,12 +25,16 @@ class OrganizerApplicationRepository:
         stmt = (
             select(OrganizerApplication)
             .where(OrganizerApplication.user_id == user_id)
-            .order_by(OrganizerApplication.created_at.desc(), OrganizerApplication.id.desc())
+            .order_by(
+                OrganizerApplication.created_at.desc(), OrganizerApplication.id.desc()
+            )
             .limit(1)
         )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
-    async def get_pending_for_user(self, user_id: int) -> Optional[OrganizerApplication]:
+    async def get_pending_for_user(
+        self, user_id: int
+    ) -> Optional[OrganizerApplication]:
         stmt = select(OrganizerApplication).where(
             OrganizerApplication.user_id == user_id,
             OrganizerApplication.status == OrganizerApplicationStatus.PENDING,
@@ -74,5 +78,9 @@ class OrganizerApplicationRepository:
         stmt = select(OrganizerApplication)
         if status is not None:
             stmt = stmt.where(OrganizerApplication.status == status)
-        stmt = stmt.order_by(OrganizerApplication.created_at.asc()).limit(limit).offset(offset)
+        stmt = (
+            stmt.order_by(OrganizerApplication.created_at.asc())
+            .limit(limit)
+            .offset(offset)
+        )
         return list((await self.session.execute(stmt)).scalars().all())

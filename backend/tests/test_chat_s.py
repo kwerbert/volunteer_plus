@@ -2,6 +2,7 @@
 Тесты Chat Service (pytest версия)
 Следует структуре test_user_s.py
 """
+
 import os
 import sys
 from datetime import datetime, timezone
@@ -13,7 +14,7 @@ import pytest
 # Настройка путей
 # ============================================================================
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, '..'))
+PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -26,6 +27,7 @@ def now_utc() -> datetime:
 # ============================================================================
 # FIXTURES
 # ============================================================================
+
 
 @pytest.fixture
 def mock_session():
@@ -49,7 +51,9 @@ def mock_repo():
     repo.get_user_chats = AsyncMock()
     repo.update_chat = AsyncMock()
     repo.deactivate_chat = AsyncMock()
-    repo.find_personal_chat = AsyncMock()  # ✅ имя метода оставлено, но внутри должен использоваться ORGANIZER
+    repo.find_personal_chat = (
+        AsyncMock()
+    )  # ✅ имя метода оставлено, но внутри должен использоваться ORGANIZER
     repo.user_has_access_to_chat = AsyncMock()
     # Member methods
     repo.add_member = AsyncMock()
@@ -72,12 +76,14 @@ def clear_chat_settings_cache():
     """Очистка кэша настроек"""
     try:
         from app.services.chat_service.config import get_settings
+
         get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
     yield
     try:
         from app.services.chat_service.config import get_settings
+
         get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
@@ -87,12 +93,14 @@ def clear_chat_settings_cache():
 # ТЕСТЫ КОНФИГУРАЦИИ
 # ============================================================================
 
+
 class TestConfig:
     """Тесты конфигурации сервиса"""
 
     def test_001_config_settings(self, clear_chat_settings_cache):
         """Проверка загрузки настроек"""
         from app.services.chat_service.config import get_settings
+
         settings = get_settings()
 
         assert settings.SERVICE_PORT == 8007
@@ -105,6 +113,7 @@ class TestConfig:
     def test_002_config_cors_origins(self, clear_chat_settings_cache):
         """Проверка парсинга CORS origins"""
         from app.services.chat_service.config import get_settings
+
         settings = get_settings()
         origins = settings.cors_origins_list
 
@@ -116,6 +125,7 @@ class TestConfig:
 # ============================================================================
 # ТЕСТЫ СХЕМ (PYDANTIC V2)
 # ============================================================================
+
 
 class TestSchemas:
     """Тесты Pydantic схем"""
@@ -131,13 +141,15 @@ class TestSchemas:
 
         req = ChatCreateRequest(
             chat_type=ChatTypeEnum.ORGANIZER,  # ✅ ЗАМЕНЕНО
-            participant_ids=[2]
+            participant_ids=[2],
         )
         assert req.chat_type == ChatTypeEnum.ORGANIZER  # ✅ ЗАМЕНЕНО
         assert req.participant_ids == [2]
 
         with pytest.raises(ValidationError):
-            ChatCreateRequest(chat_type=ChatTypeEnum.ORGANIZER, participant_ids=[])  # ✅ ЗАМЕНЕНО
+            ChatCreateRequest(
+                chat_type=ChatTypeEnum.ORGANIZER, participant_ids=[]
+            )  # ✅ ЗАМЕНЕНО
         print("✓ Схема создания чата валидируется корректно")
 
     def test_004_message_create_request_schema(self):
@@ -149,10 +161,7 @@ class TestSchemas:
             MessageTypeEnum,
         )
 
-        req = MessageCreateRequest(
-            content="Hello!",
-            message_type=MessageTypeEnum.TEXT
-        )
+        req = MessageCreateRequest(content="Hello!", message_type=MessageTypeEnum.TEXT)
         assert req.content == "Hello!"
 
         with pytest.raises(ValidationError):
@@ -176,14 +185,22 @@ class TestSchemas:
         assert member.user_id == 1
 
         chat = ChatResponse(
-            id=1, chat_type=ChatTypeEnum.ORGANIZER, created_at=now_utc(),  # ✅ ЗАМЕНЕНО
-            unread_count=0, members=[member]
+            id=1,
+            chat_type=ChatTypeEnum.ORGANIZER,
+            created_at=now_utc(),  # ✅ ЗАМЕНЕНО
+            unread_count=0,
+            members=[member],
         )
         assert chat.chat_type == ChatTypeEnum.ORGANIZER  # ✅ ЗАМЕНЕНО
 
         msg = MessageResponse(
-            id=1, chat_id=1, sender_id=2, content="Hi",
-            message_type="text", is_read=False, created_at=now_utc()
+            id=1,
+            chat_id=1,
+            sender_id=2,
+            content="Hi",
+            message_type="text",
+            is_read=False,
+            created_at=now_utc(),
         )
         assert msg.is_read is False
         print("✓ Схемы ответов создаются корректно")
@@ -193,15 +210,17 @@ class TestSchemas:
 # ТЕСТЫ МОДЕЛЕЙ
 # ============================================================================
 
+
 class TestModels:
     """Тесты SQLAlchemy моделей"""
 
     def test_006_chat_model(self):
         """Проверка модели Chat"""
         from app.services.chat_service.db.models import Chat
+
         assert Chat.__tablename__ == "chats"
         columns = [col.name for col in Chat.__table__.columns]
-        required = ['id', 'chat_type', 'title', 'is_active', 'created_at']
+        required = ["id", "chat_type", "title", "is_active", "created_at"]
         for field in required:
             assert field in columns
         print("✓ Модель Chat корректна")
@@ -209,9 +228,10 @@ class TestModels:
     def test_007_message_model(self):
         """Проверка модели Message"""
         from app.services.chat_service.db.models import Message
+
         assert Message.__tablename__ == "messages"
         columns = [col.name for col in Message.__table__.columns]
-        required = ['id', 'chat_id', 'sender_id', 'content', 'is_read', 'created_at']
+        required = ["id", "chat_id", "sender_id", "content", "is_read", "created_at"]
         for field in required:
             assert field in columns
         print("✓ Модель Message корректна")
@@ -220,6 +240,7 @@ class TestModels:
 # ============================================================================
 # ТЕСТЫ РЕПОЗИТОРИЯ
 # ============================================================================
+
 
 @pytest.mark.asyncio
 class TestRepository:
@@ -231,8 +252,10 @@ class TestRepository:
         from app.services.chat_service.db.repository import ChatRepository
 
         mock_chat = Chat(
-            id=1, chat_type=ChatTypeEnum.ORGANIZER, is_active=True,  # ✅ ЗАМЕНЕНО
-            created_at=now_utc()
+            id=1,
+            chat_type=ChatTypeEnum.ORGANIZER,
+            is_active=True,  # ✅ ЗАМЕНЕНО
+            created_at=now_utc(),
         )
         mock_session.get.return_value = mock_chat
         mock_repo.create_chat = AsyncMock(return_value=mock_chat)
@@ -249,21 +272,26 @@ class TestRepository:
 
         repo = ChatRepository(mock_session)
         mock_message = Message(
-            id=1, chat_id=1, sender_id=2, content="Test",
-            message_type=MessageTypeEnum.TEXT, is_read=False,
-            created_at=now_utc()
+            id=1,
+            chat_id=1,
+            sender_id=2,
+            content="Test",
+            message_type=MessageTypeEnum.TEXT,
+            is_read=False,
+            created_at=now_utc(),
         )
         mock_session.get.return_value = mock_message
 
         # Проверяем что методы существуют
-        assert hasattr(repo, 'create_message')
-        assert hasattr(repo, 'get_messages')
+        assert hasattr(repo, "create_message")
+        assert hasattr(repo, "get_messages")
         print("✓ Методы сообщений доступны")
 
 
 # ============================================================================
 # ТЕСТЫ БИЗНЕС-ЛОГИКИ
 # ============================================================================
+
 
 @pytest.mark.asyncio
 class TestService:
@@ -276,17 +304,19 @@ class TestService:
 
         mock_repo.user_has_access_to_chat = AsyncMock(return_value=True)
         mock_message = Message(
-            id=1, chat_id=1, sender_id=2, content="Hello",
-            message_type=MessageTypeEnum.TEXT, is_read=False,
-            created_at=now_utc()
+            id=1,
+            chat_id=1,
+            sender_id=2,
+            content="Hello",
+            message_type=MessageTypeEnum.TEXT,
+            is_read=False,
+            created_at=now_utc(),
         )
         mock_repo.create_message = AsyncMock(return_value=mock_message)
         mock_repo.update_chat = AsyncMock()
 
         service = ChatService(mock_repo)
-        result = await service.send_message(
-            chat_id=1, sender_id=2, content="Hello"
-        )
+        result = await service.send_message(chat_id=1, sender_id=2, content="Hello")
 
         assert result.content == "Hello"
         mock_repo.create_message.assert_called_once()
@@ -299,10 +329,14 @@ class TestService:
 
         # ✅ ИСПРАВЛЕНО: is_read=True (симуляция успешной отметки прочтения)
         mock_message = Message(
-            id=1, chat_id=1, sender_id=2, content="Hi",
-            message_type=MessageTypeEnum.TEXT, is_read=True,
+            id=1,
+            chat_id=1,
+            sender_id=2,
+            content="Hi",
+            message_type=MessageTypeEnum.TEXT,
+            is_read=True,
             created_at=now_utc(),
-            read_at=now_utc()
+            read_at=now_utc(),
         )
         mock_repo.mark_message_read = AsyncMock(return_value=mock_message)
 
@@ -316,6 +350,7 @@ class TestService:
 # ============================================================================
 # ТЕСТЫ FASTAPI ПРИЛОЖЕНИЯ
 # ============================================================================
+
 
 class TestMainApp:
     """Тесты FastAPI приложения"""
@@ -352,9 +387,11 @@ class TestMainApp:
         assert routes.count("/health") == 1
         print("✓ Health endpoint доступен")
 
+
 # ============================================================================
 # ТЕСТЫ ОТПРАВКИ PUSH-УВЕДОМЛЕНИЙ
 # ============================================================================
+
 
 def _make_mock_response(status: int, body: str):
     """Хелпер: собирает мок aiohttp-ответа (async context manager + .text())."""
@@ -407,14 +444,19 @@ class TestPushNotifications:
         assert validated.notification_type == NotificationType.CHAT
         assert validated.priority == Priority.HIGH
         assert validated.data == {"chat_id": 1, "sender_id": 2}
-        print("✓ NotificationRequest сериализуется в валидный CreateNotificationRequest")
+        print(
+            "✓ NotificationRequest сериализуется в валидный CreateNotificationRequest"
+        )
 
     def test_028_shared_enums_have_expected_values(self):
         """Общие enum'ы содержат ровно те значения, которые ждёт notification_service."""
         from app.utils.notifications_enums import NotificationType, Priority
 
         assert {t.value for t in NotificationType} == {
-            "CHAT", "NEW_EVENT", "EVENT_REMINDER", "SYSTEM"
+            "CHAT",
+            "NEW_EVENT",
+            "EVENT_REMINDER",
+            "SYSTEM",
         }
         assert {p.value for p in Priority} == {"HIGH", "NORMAL", "LOW"}
         print("✓ Shared enums совместимы с notification_service")
@@ -436,7 +478,7 @@ class TestPushNotifications:
         # Проверяем, что в notification_service ушёл корректный payload
         payload = session.post.call_args.kwargs["json"]
         assert payload["notification_type"] == "CHAT"  # upper-case, как enum
-        assert payload["priority"] == "HIGH"           # upper-case, как enum
+        assert payload["priority"] == "HIGH"  # upper-case, как enum
         assert payload["data"] == {"chat_id": 1, "sender_id": 2}
         print("✓ _send_one_push: успех + валидный payload")
 
@@ -463,7 +505,7 @@ class TestPushNotifications:
         resp_422 = _make_mock_response(
             422, '{"detail": [{"loc": ["body"], "msg": "field required"}]}'
         )
-        resp_500 = _make_mock_response(500, "boom")   # если бы ретраили, дошло бы сюда
+        resp_500 = _make_mock_response(500, "boom")  # если бы ретраили, дошло бы сюда
         session = _make_mock_session(resp_422, resp_500)
 
         original = chat_router._PUSH_RETRY_BACKOFF_SECONDS
@@ -533,12 +575,7 @@ if __name__ == "__main__":
     print("=" * 80)
     print("ЗАПУСК ТЕСТОВ CHAT SERVICE (pytest)")
     print("=" * 80)
-    exit_code = pytest.main([
-        __file__,
-        "-v",
-        "--tb=short",
-        "-s"
-    ])
+    exit_code = pytest.main([__file__, "-v", "--tb=short", "-s"])
     print("\n" + "=" * 80)
     print(f"КОД ВЫХОДА: {exit_code}")
     print("=" * 80)
