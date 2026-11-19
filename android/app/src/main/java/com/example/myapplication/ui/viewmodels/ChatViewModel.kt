@@ -17,11 +17,9 @@ data class ChatItem(
 @HiltViewModel
 class ChatViewModel @Inject constructor() : ViewModel() {
     
-    // Актуальные чаты
     private val _activeChats = MutableStateFlow<List<ChatItem>>(emptyList())
     val activeChats: StateFlow<List<ChatItem>> = _activeChats
 
-    // Прошедшие чаты
     private val _pastChats = MutableStateFlow<List<ChatItem>>(emptyList())
     val pastChats: StateFlow<List<ChatItem>> = _pastChats
 
@@ -31,10 +29,27 @@ class ChatViewModel @Inject constructor() : ViewModel() {
             ChatItem(2L, "Добрые руки", "Спасибо за помощь с собаками!", "Вчера", 0),
             ChatItem(3L, "Организатор Иван", "Отправил тебе документы по проекту.", "10 мая", 0)
         )
-
         _pastChats.value = listOf(
             ChatItem(4L, "Сбор макулатуры", "Чат закрыт. Спасибо за участие!", "5 апреля", 0),
             ChatItem(5L, "Посадка деревьев", "Мероприятие завершено. Фото в альбоме.", "22 апреля", 0)
         )
+    }
+
+    // Создание нового чата при клике на "Написать"
+    fun createChat(orgName: String): ChatItem {
+        // Проверяем, может чат с этой организацией уже есть
+        val existingChat = _activeChats.value.find { it.title == orgName }
+        if (existingChat != null) return existingChat
+
+        // Создаем новый
+        val newChat = ChatItem(
+            id = System.currentTimeMillis(),
+            title = orgName,
+            lastMessage = "Чат создан",
+            time = "Только что",
+            unreadCount = 0
+        )
+        _activeChats.value = listOf(newChat) + _activeChats.value
+        return newChat
     }
 }

@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,17 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 data class Message(val id: Int, val text: String, val isMine: Boolean)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatDetailScreen(
-    chatTitle: String,
-    onBackClick: () -> Unit
-) {
-    // Тестовые сообщения
+fun ChatDetailScreen() {
     val messages = listOf(
         Message(1, "Привет! Ждем тебя на уборке в субботу.", false),
         Message(2, "Привет! Обязательно приду. Во сколько собираемся?", true),
@@ -33,18 +26,7 @@ fun ChatDetailScreen(
     var inputText by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Верхняя панель с кнопкой Назад
-        TopAppBar(
-            title = { Text(chatTitle, color = Color.White) },
-            navigationIcon = {
-                IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF6200EE))
-        )
-
-        // Список сообщений
+        // Список сообщений (TopAppBar теперь глобальный)
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -91,7 +73,7 @@ fun ChatDetailScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             IconButton(
-                onClick = { /* TODO: Отправка сообщения */ inputText = "" },
+                onClick = { inputText = "" },
                 modifier = Modifier
                     .background(Color(0xFF6200EE), RoundedCornerShape(50))
                     .padding(4.dp)
