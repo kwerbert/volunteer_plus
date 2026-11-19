@@ -26,9 +26,11 @@ import com.example.myapplication.ui.viewmodels.ChatViewModel
 fun ChatListScreen(
     viewModel: ChatViewModel = hiltViewModel()
 ) {
-    val chats by viewModel.chats.collectAsState()
-    // Храним выбранный чат. Если null — показываем список
+    val activeChats by viewModel.activeChats.collectAsState()
+    val pastChats by viewModel.pastChats.collectAsState()
+    
     var selectedChat by remember { mutableStateOf<ChatItem?>(null) }
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     if (selectedChat != null) {
         // Если чат выбран, показываем экран переписки
@@ -37,20 +39,42 @@ fun ChatListScreen(
             onBackClick = { selectedChat = null }
         )
     } else {
-        // Иначе показываем список чатов
+        // Иначе показываем список чатов с табами
         Column(modifier = Modifier.fillMaxSize()) {
             TopAppBar(
                 title = { Text("Сообщения", color = Color.White) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF6200EE))
             )
+
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.White,
+                contentColor = Color(0xFF6200EE)
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Актуальные") }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Прошедшие") }
+                )
+            }
             
-            if (chats.isEmpty()) {
+            val currentList = if (selectedTab == 0) activeChats else pastChats
+
+            if (currentList.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("У вас пока нет сообщений", color = Color.Gray)
+                    Text(
+                        text = if (selectedTab == 0) "У вас пока нет активных чатов" else "Нет прошедших чатов",
+                        color = Color.Gray
+                    )
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(chats, key = { it.id }) { chat ->
+                    items(currentList, key = { it.id }) { chat ->
                         ChatRow(chat = chat, onClick = { selectedChat = chat })
                         HorizontalDivider()
                     }
