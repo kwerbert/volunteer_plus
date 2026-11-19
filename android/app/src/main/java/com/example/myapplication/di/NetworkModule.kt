@@ -1,6 +1,9 @@
 package com.example.myapplication.di
 
 import com.example.myapplication.data.api.AuthApi
+import com.example.myapplication.data.api.FeedApi
+import com.example.myapplication.data.repository.FeedRepository
+import com.example.myapplication.util.Constants
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -30,10 +33,27 @@ object NetworkModule {
     @Singleton
     fun provideAuthApi(client: OkHttpClient): AuthApi {
         return Retrofit.Builder()
-            .baseUrl("http://10.0.2.2:8008/") // Адрес вашего бэкенда
+            .baseUrl(Constants.USER_SERVICE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(AuthApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFeedApi(client: OkHttpClient): FeedApi {
+        return Retrofit.Builder()
+            .baseUrl(Constants.FEED_SERVICE_URL)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(FeedApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFeedRepository(api: FeedApi): FeedRepository {
+        return FeedRepository(api)
     }
 }

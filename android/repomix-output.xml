@@ -57,10 +57,13 @@ app/
               data/
                 api/
                   AuthApi.kt
+                  FeedApi.kt
                 models/
                   EventItem.kt
+                  FeedResponse.kt
                 repository/
                   AuthRepository.kt
+                  FeedRepository.kt
               di/
                 AppModule.kt
                 NetworkModule.kt
@@ -69,6 +72,7 @@ app/
                 WebSocketManager.kt
               ui/
                 viewmodels/
+                  HomeViewModel.kt
                   LoginViewModel.kt
               util/
                 Constants.kt
@@ -298,6 +302,24 @@ interface AuthApi {
 }
 </file>
 
+<file path="app/src/main/java/com/example/myapplication/data/api/FeedApi.kt">
+package com.example.myapplication.data.api
+
+import com.example.myapplication.data.models.FeedResponse
+import retrofit2.Response
+import retrofit2.http.GET
+import retrofit2.http.Query
+
+interface FeedApi {
+    @GET("api/v1/feed")
+    suspend fun getFeed(
+        @Query("user_id") userId: Long,
+        @Query("page") page: Int = 1,
+        @Query("page_size") pageSize: Int = 20
+    ): Response<FeedResponse>
+}
+</file>
+
 <file path="app/src/main/java/com/example/myapplication/data/models/EventItem.kt">
 package com.example.myapplication.data.models
 
@@ -326,6 +348,26 @@ data class EventItem(
 )
 </file>
 
+<file path="app/src/main/java/com/example/myapplication/data/models/FeedResponse.kt">
+package com.example.myapplication.data.models
+
+import com.google.gson.annotations.SerializedName
+
+data class FeedResponse(
+    @SerializedName("user_id") val userId: Long,
+    @SerializedName("generated_at") val generatedAt: String,
+    @SerializedName("sections") val sections: List<FeedSection>,
+    @SerializedName("total_events") val totalEvents: Int
+)
+
+data class FeedSection(
+    @SerializedName("section_type") val sectionType: String,
+    @SerializedName("section_title") val sectionTitle: String,
+    @SerializedName("events") val events: List<EventItem>,
+    @SerializedName("layout") val layout: String = "horizontal"
+)
+</file>
+
 <file path="app/src/main/java/com/example/myapplication/data/repository/AuthRepository.kt">
 package com.example.myapplication.data.repository
 
@@ -342,6 +384,29 @@ class AuthRepository @Inject constructor(private val authApi: AuthApi) {
                 Result.success(response.body()!!)
             } else {
                 Result.failure(Exception("Ошибка: ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+</file>
+
+<file path="app/src/main/java/com/example/myapplication/data/repository/FeedRepository.kt">
+package com.example.myapplication.data.repository
+
+import com.example.myapplication.data.api.FeedApi
+import com.example.myapplication.data.models.FeedResponse
+import javax.inject.Inject
+
+class FeedRepository @Inject constructor(private val api: FeedApi) {
+    suspend fun getFeed(userId: Long): Result<FeedResponse> {
+        return try {
+            val response = api.getFeed(userId)
+            if (response.isSuccessful && response.body() != null) {
+                Result.success(response.body()!!)
+            } else {
+                Result.failure(Exception("Ошибка сервера: ${response.code()}"))
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -374,6 +439,9 @@ object AppModule {
 package com.example.myapplication.di
 
 import com.example.myapplication.data.api.AuthApi
+import com.example.myapplication.data.api.FeedApi
+import com.example.myapplication.data.repository.FeedRepository
+import com.example.myapplication.util.Constants
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -403,11 +471,28 @@ object NetworkModule {
     @Singleton
     fun provideAuthApi(client: OkHttpClient): AuthApi {
         return Retrofit.Builder()
-            .baseUrl("http://10.0.2.2:8008/") // Адрес вашего бэкенда
+            .baseUrl(Constants.USER_SERVICE_URL)
             .client(client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(AuthApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFeedApi(client: OkHttpClient): FeedApi {
+        return Retrofit.Builder()
+            .baseUrl(Constants.FEED_SERVICE_URL)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(FeedApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFeedRepository(api: FeedApi): FeedRepository {
+        return FeedRepository(api)
     }
 }
 </file>
@@ -520,6 +605,49 @@ class WebSocketManager @Inject constructor(
 
     fun sendMessage(content: String) {
         currentWebSocket?.send(content)
+    }
+}
+</file>
+
+<file path="app/src/main/java/com/example/myapplication/ui/viewmodels/HomeViewModel.kt">
+package com.example.myapplication.ui.viewmodels
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.myapplication.data.models.EventItem
+import com.example.myapplication.data.repository.FeedRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    private val feedRepository: FeedRepository
+) : ViewModel() {
+
+    private val _events = MutableStateFlow<List<EventItem>>(emptyList())
+    val events: StateFlow<List<EventItem>> = _events
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
+
+    fun loadFeed(userId: Long) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            val result = feedRepository.getFeed(userId)
+            result.onSuccess { feedResponse ->
+                _events.value = feedResponse.sections.flatMap { it.events }
+            }.onFailure { error ->
+                _error.value = error.message
+            }
+            _isLoading.value = false
+        }
     }
 }
 </file>
@@ -753,19 +881,27 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.myapplication.data.models.EventItem
-import com.example.myapplication.data.models.OrganizationInfo
+import com.example.myapplication.ui.viewmodels.HomeViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainAppScreen(onLogoutClick: () -> Unit) {
+fun MainAppScreen(
+    onLogoutClick: () -> Unit,
+    homeViewModel: HomeViewModel = hiltViewModel() // <-- Подключаем реальный ViewModel
+) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    // Ваши реальные данные для демонстрации
-    val fakeEvents = listOf(
-        EventItem(1, "Уборка парка", OrganizationInfo(1, "Эко-Движение", null, 4.9f, true), "15 мая", descriptionPreview = "Поможем природе"),
-        EventItem(2, "Приют для животных", OrganizationInfo(2, "Добрые руки", null, 4.8f, true), "18 мая", descriptionPreview = "Погуляем с собаками")
-    )
+    // Собираем данные из ViewModel
+    val events by homeViewModel.events.collectAsState()
+    val isLoading by homeViewModel.isLoading.collectAsState()
+    val error by homeViewModel.error.collectAsState()
+
+    // Загружаем данные при старте экрана (передаем userId = 1 для теста)
+    LaunchedEffect(Unit) {
+        homeViewModel.loadFeed(1L) 
+    }
 
     Scaffold(
         topBar = {
@@ -781,7 +917,6 @@ fun MainAppScreen(onLogoutClick: () -> Unit) {
         },
         bottomBar = {
             NavigationBar {
-                // Используем ВАШИ иконки из drawable!
                 NavigationBarItem(
                     icon = { Icon(painterResource(id = R.drawable.ic_home), contentDescription = null) },
                     label = { Text("Главная") }, selected = selectedTab == 0, onClick = { selectedTab = 0 }
@@ -799,7 +934,16 @@ fun MainAppScreen(onLogoutClick: () -> Unit) {
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
             when (selectedTab) {
-                0 -> HomeFeed(fakeEvents)
+                0 -> {
+                    // Отрисовка состояний (Загрузка / Ошибка / Данные)
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color(0xFF6200EE))
+                    } else if (error != null) {
+                        Text("Ошибка: $error", color = Color.Red, modifier = Modifier.align(Alignment.Center).padding(16.dp))
+                    } else {
+                        HomeFeed(events)
+                    }
+                }
                 1 -> CenterText("Чат (в разработке)")
                 2 -> CenterText("Профиль (в разработке)")
             }
@@ -811,15 +955,19 @@ fun MainAppScreen(onLogoutClick: () -> Unit) {
 fun HomeFeed(events: List<EventItem>) {
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF5F5F5))) {
         Text("Мероприятия", fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(16.dp))
-        LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(events) { event ->
-                Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(event.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(event.organization.name, fontSize = 14.sp, color = Color(0xFF6200EE))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(event.descriptionPreview ?: "Описание отсутствует", fontSize = 14.sp, color = Color.Gray)
+        if (events.isEmpty()) {
+            Text("Нет доступных мероприятий", modifier = Modifier.padding(16.dp), color = Color.Gray)
+        } else {
+            LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(events) { event ->
+                    Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(event.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(event.organization.name, fontSize = 14.sp, color = Color(0xFF6200EE))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(event.descriptionPreview ?: "Описание отсутствует", fontSize = 14.sp, color = Color.Gray)
+                        }
                     }
                 }
             }
@@ -3252,6 +3400,7 @@ class MyApplication : Application()
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.MyApplication">
 
         <activity
@@ -3296,6 +3445,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("kotlin-kapt")
+    id("com.google.dagger.hilt.android")
 }
 
 android {
@@ -3308,7 +3459,6 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -3317,32 +3467,45 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-
-    buildFeatures { compose = true }
+    
+    buildFeatures {
+        compose = true
+        buildConfig = true // ВАЖНО: включает генерацию BuildConfig
+    }
 }
 
 dependencies {
+    // Compose
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.activity:activity-compose:1.9.2")
-    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
+    // Core
+    implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
 
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    // Network (Retrofit & OkHttp & Gson)
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+
+    // Hilt (Dependency Injection)
+    implementation("com.google.dagger:hilt-android:2.57.2")
+    kapt("com.google.dagger:hilt-compiler:2.57.2")
 }
 </file>
 
@@ -9485,6 +9648,7 @@ plugins {
     id("com.android.application") version "9.2.1" apply false
     id("org.jetbrains.kotlin.android") version "2.2.10" apply false
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.10" apply false
+    id("com.google.dagger.hilt.android") version "2.57.2" apply false
 }
 </file>
 
