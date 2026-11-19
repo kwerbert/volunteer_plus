@@ -59,6 +59,14 @@ async def get_current_user_id(
             detail="Невалидный токен",
         )
 
+    # Проверка типа токена: refresh-токен не должен проходить как access
+    if payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Невалидный тип токена",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     user_id = payload.get("user_id")
     if user_id is None:
         raise HTTPException(

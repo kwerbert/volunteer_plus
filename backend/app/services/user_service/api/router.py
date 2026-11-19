@@ -55,14 +55,18 @@ async def login(
     request: LoginRequest,
     auth_service=Depends(get_auth_service),
 ):
-    """Аутентификация пользователя"""
-    user_data, tokens = await auth_service.login(request.email, request.password)
-    if not user_data:
+    try:
+        user_data, tokens = await auth_service.login(
+            request.email,
+            request.password,
+        )
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Неверный email или пароль",
+            detail=str(e),
             headers={"WWW-Authenticate": "Bearer"},
         )
+
     return tokens
 
 
@@ -71,13 +75,14 @@ async def refresh_tokens(
     request: RefreshRequest,
     auth_service=Depends(get_auth_service),
 ):
-    """Обновление access токена по refresh токену"""
-    tokens = await auth_service.refresh_tokens(request.refresh_token)
-    if not tokens:
+    try:
+        tokens = await auth_service.refresh_tokens(request.refresh_token)
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Невалидный refresh токен",
+            detail=str(e),
         )
+
     return tokens
 
 
