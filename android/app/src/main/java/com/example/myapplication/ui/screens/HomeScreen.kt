@@ -1,5 +1,6 @@
 package com.example.myapplication.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.myapplication.data.models.EventItem
+import com.example.myapplication.ui.components.EventDetailsSheet
 import com.example.myapplication.ui.viewmodels.HomeViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -23,8 +25,8 @@ fun HomeScreen(
     val events by viewModel.events.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+    var selectedEvent by remember { mutableStateOf<EventItem?>(null) }
 
-    // Загружаем данные при старте
     LaunchedEffect(Unit) {
         viewModel.loadFeed(1L)
     }
@@ -50,41 +52,37 @@ fun HomeScreen(
                 Text("Пока нет рекомендаций", color = Color.Gray)
             }
         } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(events) { event ->
-                    HomeEventCard(event)
+                    HomeEventCard(event = event, onClick = { selectedEvent = event })
                 }
             }
         }
     }
+
+    // Показываем BottomSheet, если выбрано мероприятие
+    if (selectedEvent != null) {
+        EventDetailsSheet(
+            event = selectedEvent!!,
+            onDismiss = { selectedEvent = null }
+        )
+    }
 }
 
 @Composable
-fun HomeEventCard(event: EventItem) {
+fun HomeEventCard(event: EventItem, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = event.title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = event.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = event.organization.name,
-                fontSize = 14.sp,
-                color = Color(0xFF6200EE)
-            )
+            Text(text = event.organization.name, fontSize = 14.sp, color = Color(0xFF6200EE))
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = event.descriptionPreview ?: "Описание отсутствует",
-                fontSize = 14.sp,
-                color = Color.Gray
-            )
+            Text(text = event.descriptionPreview ?: "Описание отсутствует", fontSize = 14.sp, color = Color.Gray, maxLines = 2)
         }
     }
 }
