@@ -552,6 +552,19 @@ class TestMainApp:
 
         print("✓ Health endpoint доступен")
 
+    def test_021_organizer_application_routes(self, clear_user_settings_cache):
+        """Проверка маршрутов заявок организатора"""
+        from app.services.user_service.main import app
+        from tests.conftest import collect_route_paths
+
+        routes = collect_route_paths(app)
+
+        assert "/api/v1/organizer-applications" in routes
+        assert "/api/v1/organizer-applications/me" in routes
+        assert "/api/v1/organizer-applications/{application_id}" in routes
+
+        print("✓ Эндпоинты заявок организатора подключены корректно")
+
 
 # ============================================================================
 # ЗАПУСК ТЕСТОВ

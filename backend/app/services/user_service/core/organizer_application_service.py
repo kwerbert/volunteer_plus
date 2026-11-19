@@ -88,16 +88,16 @@ class OrganizerApplicationService:
                 )
 
         # 4. Создание
-        application = await self.applications.create(current_user.id)
         try:
+            application = await self.applications.create(current_user.id)
             await self.session.commit()
         except IntegrityError:
-            # сработал partial unique index — параллельный запрос уже создал pending
             await self.session.rollback()
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Заявка уже на рассмотрении",
             )
+
         await self.session.refresh(application)
         logger.info(
             "Organizer application %s created by user %s",
