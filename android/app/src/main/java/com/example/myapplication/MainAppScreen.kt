@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.sp
 import com.example.myapplication.ui.screens.EventsScreen
+import com.example.myapplication.ui.screens.HomeScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,7 +51,7 @@ fun MainAppScreen(
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
             when (selectedTab) {
-                0 -> CenterText("Лента (Главная) - в разработке")
+                0 -> HomeScreen()
                 1 -> EventsScreen() // <-- Подключили наш новый экран!
                 2 -> CenterText("Профиль (в разработке)")
             }
