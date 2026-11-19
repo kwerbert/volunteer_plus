@@ -1,42 +1,37 @@
 """Точка входа User Service"""
-import logging
 from contextlib import asynccontextmanager
 
-import uvicorn
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.user_service.api.router import router
-from app.services.user_service.config import settings
-from app.services.user_service.db.session import engine, init_db
+from app.services.user_service.api.organizer_router import router as organizer_router  # ✅ ДОБАВИТЬ
+from app.services.user_service.config import get_settings
+from app.services.user_service.db.session import init_db, engine
 
-# Настройка логирования
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """События запуска и остановки приложения"""
     # Startup
-    logger.info(f"Starting {settings.SERVICE_NAME} on {settings.SERVICE_PORT}")
-    logger.info(f"Database: {settings.DATABASE_URL}")
-    logger.info(f"JWT Algorithm: {settings.JWT_ALGORITHM}")
-    logger.info("Service-to-Service Auth: API Key (X-Service-Key)")
+    logger.info("Starting User Service...")
     await init_db()
-    logger.info("Database tables checked/created")
+    logger.info("Database initialized")
     yield
     # Shutdown
-    logger.info(f"Shutting down {settings.SERVICE_NAME}")
+    logger.info("Shutting down User Service...")
     await engine.dispose()
+
+
+settings = get_settings()
 
 app = FastAPI(
     title=settings.SERVICE_NAME,
-    description="Микросервис аутентификации и управления пользователями",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # CORS Middleware
@@ -50,6 +45,8 @@ app.add_middleware(
 
 # Include Router
 app.include_router(router)
+app.include_router(organizer_router)  # ✅ ДОБАВИТЬ ЭТУ СТРОКУ
+
 
 @app.get("/")
 async def root():
@@ -58,21 +55,10 @@ async def root():
         "service": settings.SERVICE_NAME,
         "status": "running",
         "version": "1.0.0",
-        "docs": "/docs"
     }
+
 
 @app.get("/health")
 async def health_check():
     """Эндпоинт проверки здоровья"""
-    return {
-        "status": "healthy",
-        "service": settings.SERVICE_NAME
-    }
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "app.services.user_service.main:app",
-        host="0.0.0.0",
-        port=settings.SERVICE_PORT,
-        reload=settings.DEBUG
-    )
+    return {"status": "healthy", "service": settings.SERVICE_NAME}

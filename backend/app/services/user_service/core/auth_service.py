@@ -145,9 +145,10 @@ class AuthService:
             "email": user.email,
             "full_name": user.full_name,
             "phone": user.phone,
-            "role": user.role.value if hasattr(user.role, 'value') else user.role,
+            "role": user.role,
             "is_active": user.is_active,
             "is_verified": user.is_verified,
-            "created_at": user.created_at.isoformat() if user.created_at else None,
-            "last_login": user.last_login.isoformat() if user.last_login else None
+            "is_admin": user.is_admin,
+            "created_at": user.created_at,
+            "last_login": user.last_login,
         }

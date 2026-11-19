@@ -1,13 +1,13 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class UserRoleEnum(str, Enum):
     VOLUNTEER = "volunteer"
-    ADMIN = "admin"
+    ORGANIZER = "organizer"
 
 
 class RegisterRequest(BaseModel):
@@ -62,6 +62,7 @@ class UserResponse(BaseModel):
     role: UserRoleEnum
     is_active: bool = True
     is_verified: bool = False
+    is_admin: bool = False
     created_at: datetime
     last_login: Optional[datetime] = None
 
@@ -118,3 +119,42 @@ class ErrorResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# === Organizer Applications ===
+
+class OrganizerApplicationStatusEnum(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class OrganizerApplicationReviewRequest(BaseModel):
+    """Решение админа. status — только approved/rejected."""
+    status: Literal[
+        OrganizerApplicationStatusEnum.APPROVED,
+        OrganizerApplicationStatusEnum.REJECTED,
+    ]
+    rejection_reason: Optional[str] = Field(None, max_length=1000)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class OrganizerApplicationResponse(BaseModel):
+    id: int
+    user_id: int
+    status: OrganizerApplicationStatusEnum
+    created_at: datetime
+    reviewed_by: Optional[int] = None
+    reviewed_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrganizerApplicationCooldownError(BaseModel):
+    """Тело detail для 429 (документация клиента)."""
+    message: str
+    rejected_at: datetime
+    retry_at: datetime
+    retry_after_seconds: int
