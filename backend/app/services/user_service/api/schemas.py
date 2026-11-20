@@ -98,7 +98,20 @@ class UserVerifyResponse(BaseModel):
     user_id: int
     exists: bool
     is_active: bool
+    role: Optional[UserRoleEnum] = None
+    is_admin: bool = False
+    model_config = ConfigDict(from_attributes=True)
 
+
+class UserInternalResponse(BaseModel):
+    """Данные пользователя для внутренних сервисов (поиск по email, этап 2)."""
+
+    id: int
+    email: str
+    full_name: Optional[str] = None
+    role: UserRoleEnum
+    is_active: bool
+    is_admin: bool
     model_config = ConfigDict(from_attributes=True)
 
 

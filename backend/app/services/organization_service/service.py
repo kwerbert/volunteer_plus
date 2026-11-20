@@ -1,41 +1,85 @@
+import logging
 from typing import List, Optional
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db.models import Organization
-from .schemas import OrganizationCreate
+from .db.models import Organization, OrganizationOrganizer, OrgOrganizerRole
+from .db.organizer_repository import OrganizationOrganizerRepository
+from .schemas import CurrentUser, OrganizationCreate
+from .utils.http_client import get_user_by_email
+
+logger = logging.getLogger(__name__)
 
 
 class OrganizationService:
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.organizers = OrganizationOrganizerRepository(db)
 
-    async def create(self, data: OrganizationCreate) -> Organization:
+    # === Создание ===
+
+    async def create(
+        self, data: OrganizationCreate, current_user: CurrentUser
+    ) -> Organization:
+        """Роль ORGANIZER проверяет require_organizer в роутере."""
+        # 1. Один аккаунт — одна СВОЯ организация (активное владение).
+        #    Членство в чужих организациях созданию своей не мешает.
+        owned_id = await self.organizers.get_owned_organization_id(current_user.id)
+        if owned_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"У пользователя уже есть организация (id={owned_id})",
+            )
+        # 2. Уникальность имени
         existing = await self.db.execute(
             select(Organization).where(Organization.name == data.name)
         )
         if existing.scalar_one_or_none():
-            raise ValueError("Organization with this name already exists")
-
-        new_org = Organization(
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Organization with this name already exists",
+            )
+        # 3. Организация + запись владельца — одна транзакция.
+        org = Organization(
             name=data.name,
             description=data.description,
             category_id=data.category_id,
-            owner_user_id=data.owner_user_id,
+            owner_user_id=current_user.id,
             is_verified=False,
             rating=0.0,
             is_active=True,
         )
-        self.db.add(new_org)
-        await self.db.commit()
-        await self.db.refresh(new_org)
-        return new_org
+        try:
+            self.db.add(org)
+            await self.db.flush()
+            await self.organizers.add(
+                org.id,
+                current_user.id,
+                OrgOrganizerRole.OWNER,
+                added_by=current_user.id,
+            )
+            await self.db.commit()
+        except IntegrityError:
+            # Гонка двух параллельных POST — partial unique index на владельца.
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="У пользователя уже есть организация",
+            )
+        await self.db.refresh(org)
+        logger.info("Organization %s created by user %s", org.id, current_user.id)
+        return org
+
+    # === Чтение ===
 
     async def get_list(
         self, category_id: Optional[int] = None, verified: Optional[bool] = None
     ) -> List[Organization]:
-        query = select(Organization)
+        # Удалённые организации в публичном листинге не показываем.
+        query = select(Organization).where(Organization.is_active)
         if category_id is not None:
             query = query.where(Organization.category_id == category_id)
         if verified is not None:
@@ -44,17 +88,136 @@ class OrganizationService:
         return list(result.scalars().all())
 
     async def get_by_id(self, org_id: int) -> Optional[Organization]:
+        # Возвращаем и неактивные: имя нужно чатам и истории мероприятий.
         return await self.db.get(Organization, org_id)
 
-    async def verify_organization(self, org_id: int, verified: bool) -> Organization:
+    async def _get_active_org_or_404(self, org_id: int) -> Organization:
         org = await self.db.get(Organization, org_id)
-        if not org:
-            raise ValueError("Organization not found")
+        if not org or not org.is_active:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        return org
 
+    async def _require_owner(self, org_id: int, current_user: CurrentUser) -> None:
+        if not await self.organizers.is_owner(org_id, current_user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Только владелец организации может выполнять это действие",
+            )
+
+    # === Организаторы организации ===
+
+    async def list_organizers(self, org_id: int) -> List[OrganizationOrganizer]:
+        await self._get_active_org_or_404(org_id)
+        return await self.organizers.get_active_by_organization(org_id)
+
+    async def add_organizer(
+        self, org_id: int, email: str, current_user: CurrentUser
+    ) -> OrganizationOrganizer:
+        await self._get_active_org_or_404(org_id)
+        await self._require_owner(org_id, current_user)
+
+        user_info = await get_user_by_email(email)
+        if user_info is None:
+            raise HTTPException(
+                status_code=404, detail=f"Пользователь с email {email} не найден"
+            )
+        if not user_info.get("is_active"):
+            raise HTTPException(status_code=422, detail="Пользователь деактивирован")
+        if user_info.get("role") != "organizer":
+            raise HTTPException(
+                status_code=422,
+                detail="Пользователь не является организатором: "
+                "сначала он должен подать заявку и получить одобрение",
+            )
+        target_id = int(user_info["id"])
+
+        membership = await self.organizers.get_membership(org_id, target_id)
+        if membership and membership.is_active:
+            raise HTTPException(
+                status_code=409, detail="Пользователь уже организатор этой организации"
+            )
+        try:
+            if membership:
+                membership = await self.organizers.reactivate(
+                    membership, added_by=current_user.id
+                )
+            else:
+                membership = await self.organizers.add(
+                    org_id,
+                    target_id,
+                    OrgOrganizerRole.ORGANIZER,
+                    added_by=current_user.id,
+                )
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=409, detail="Пользователь уже организатор этой организации"
+            )
+        await self.db.refresh(membership)
+        # TODO(этап 5): добавить нового организатора в существующие чаты организации.
+        logger.info(
+            "User %s added as organizer of org %s by %s",
+            target_id,
+            org_id,
+            current_user.id,
+        )
+        return membership
+
+    async def remove_organizer(
+        self, org_id: int, user_id: int, current_user: CurrentUser
+    ) -> None:
+        await self._get_active_org_or_404(org_id)
+        await self._require_owner(org_id, current_user)
+        if user_id == current_user.id:
+            raise HTTPException(
+                status_code=400, detail="Владелец не может удалить сам себя"
+            )
+        membership = await self.organizers.get_active_membership(org_id, user_id)
+        if membership is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Пользователь не является организатором этой организации",
+            )
+        if membership.role_in_org == OrgOrganizerRole.OWNER:
+            raise HTTPException(
+                status_code=400, detail="Нельзя удалить владельца организации"
+            )
+        await self.organizers.deactivate(membership)
+        await self.db.commit()
+        # T0DO(этап 5): убрать организатора из чатов организации.
+        logger.info(
+            "User %s removed from organizers of org %s by %s",
+            user_id,
+            org_id,
+            current_user.id,
+        )
+
+    # === Удаление организации (мягкое) ===
+
+    async def delete_organization(self, org_id: int, current_user: CurrentUser) -> None:
+        org = await self._get_active_org_or_404(org_id)
+        is_owner = await self.organizers.is_owner(org_id, current_user.id)
+        if not (is_owner or current_user.is_admin):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Удалить организацию может только владелец или администратор",
+            )
+        await self.organizers.deactivate_all_for_organization(org_id)
+        org.is_active = False
+        await self.db.commit()
+        # T0DO(этап 4): отменить активные/будущие мероприятия организации через
+        # event_service; завершённые не трогаем — название организации
+        # «замораживается» в их карточках (снапшот org_name появится в этапе 4).
+        logger.info("Organization %s deactivated by user %s", org_id, current_user.id)
+
+    # === Верификация (заглушка, только админ) ===
+
+    async def verify_organization(self, org_id: int, verified: bool) -> Organization:
+        org = await self._get_active_org_or_404(org_id)
         org.is_verified = verified
         if verified:
-            org.rating = min(org.rating + 1.0, 5.0)
-
+            org.rating = min(org.rating + 1.0, 5.0)  # поведение сохранено как было
         await self.db.commit()
         await self.db.refresh(org)
         return org

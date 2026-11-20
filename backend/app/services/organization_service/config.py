@@ -9,16 +9,25 @@ class Settings(BaseSettings):
     SERVICE_NAME: str = "organization_service"
     SERVICE_PORT: int = 8004
     DEBUG: bool = True
+
     _project_root: Path = Path(__file__).resolve().parents[3]
     DATABASE_URL: str = f"sqlite+aiosqlite:///{_project_root}/volunteer_plus.db"
     LOG_LEVEL: str = "INFO"
+
     USER_SERVICE_URL: str = "http://localhost:8008"
     EVENT_SERVICE_URL: str = "http://localhost:8003"
-    # 🔐 Service-to-Service auth — загружается из переменных окружения
+
     SERVICE_API_KEY: str = Field(
         default="dev-insecure-service-key-change-in-production",
         description="Service-to-service API key (env: ORGANIZATION_SERVICE_API_KEY)",
     )
+
+    JWT_SECRET_KEY: str = Field(
+        default="dev-insecure-secret-key-change-in-production",
+        description="JWT secret key (env: ORGANIZATION_JWT_SECRET_KEY). "
+        "Должен совпадать с USER_JWT_SECRET_KEY.",
+    )
+    JWT_ALGORITHM: str = "HS256"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -35,6 +44,10 @@ class Settings(BaseSettings):
             if self.SERVICE_API_KEY == "dev-insecure-service-key-change-in-production":
                 raise ValueError(
                     "SERVICE_API_KEY must be set via ORGANIZATION_SERVICE_API_KEY environment variable in production"
+                )
+            if self.JWT_SECRET_KEY == "dev-insecure-secret-key-change-in-production":
+                raise ValueError(
+                    "JWT_SECRET_KEY must be set via ORGANIZATION_JWT_SECRET_KEY environment variable in production"
                 )
         return self
 

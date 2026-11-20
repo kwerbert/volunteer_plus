@@ -566,6 +566,47 @@ class TestMainApp:
         print("✓ Эндпоинты заявок организатора подключены корректно")
 
 
+class TestStage2InternalAPI:
+    """Этап 2: by-email + расширенный verify для organization_service."""
+
+    def test_022_by_email_route_registered(self, clear_user_settings_cache):
+        from app.services.user_service.main import app
+        from tests.conftest import collect_route_paths
+
+        assert "/api/v1/users/by-email/{email}" in collect_route_paths(app)
+
+    def test_023_verify_response_schema_extended(self):
+        from app.services.user_service.api.schemas import UserVerifyResponse
+
+        resp = UserVerifyResponse(
+            user_id=2, exists=True, is_active=True, role="organizer", is_admin=False
+        )
+        assert resp.role == "organizer"
+        # Обратная совместимость: новые поля опциональны
+        legacy = UserVerifyResponse(user_id=1, exists=False, is_active=False)
+        assert legacy.role is None and legacy.is_admin is False
+
+    @pytest.mark.asyncio
+    async def test_024_get_user_by_email(self, mock_user_repo):
+        from app.services.user_service.core.auth_service import AuthService
+        from app.services.user_service.core.service import UserService
+        from app.services.user_service.db.models import User, UserRoleEnum
+
+        mock_user_repo.get_by_email.return_value = User(
+            id=2,
+            email="org@example.com",
+            password_hash="x",
+            role=UserRoleEnum.ORGANIZER,
+            is_active=True,
+            is_admin=False,
+            created_at=now_utc(),
+        )
+        service = UserService(mock_user_repo, AuthService(mock_user_repo))
+        user = await service.get_user_by_email("org@example.com")
+        assert user is not None and user.role == UserRoleEnum.ORGANIZER
+        mock_user_repo.get_by_email.assert_awaited_once_with("org@example.com")
+
+
 # ============================================================================
 # ЗАПУСК ТЕСТОВ
 # ============================================================================

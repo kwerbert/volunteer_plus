@@ -16,6 +16,7 @@ from app.services.user_service.api.schemas import (
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
+    UserInternalResponse,
     UserProfileForFeedResponse,
     UserResponse,
     UserSettingsResponse,
@@ -198,15 +199,34 @@ async def update_settings(
 # === SERVICE-TO-SERVICE ЭНДПОИНТЫ ===
 
 
+@router.get("/users/by-email/{email}", response_model=UserInternalResponse)
+async def get_user_by_email(
+    email: str,
+    _: None = Depends(verify_service_key),
+    user_service=Depends(get_user_service),
+):
+    """Поиск пользователя по email (внутренний API, этап 2)."""
+    user = await user_service.get_user_by_email(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    return user
+
+
 @router.get("/users/verify/{user_id}", response_model=UserVerifyResponse)
 async def verify_user(
     user_id: int,
     _: None = Depends(verify_service_key),
     user_service=Depends(get_user_service),
 ):
-    """Проверка существования пользователя (внутренний API)"""
-    exists = await user_service.verify_user_exists(user_id)
-    return UserVerifyResponse(exists=exists, is_active=exists)
+    """Существование + актуальные role/is_admin (внутренний API)."""
+    user = await user_service.get_user_internal(user_id)
+    return UserVerifyResponse(
+        user_id=user_id,
+        exists=user is not None,
+        is_active=bool(user and user.is_active),
+        role=user.role if user else None,
+        is_admin=bool(user and user.is_admin),
+    )
 
 
 @router.get("/users/{user_id}/feed-profile", response_model=UserProfileForFeedResponse)

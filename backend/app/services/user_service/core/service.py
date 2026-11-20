@@ -90,6 +90,14 @@ class UserService:
         """Проверка существования пользователя"""
         return await self.user_repo.exists(user_id)
 
+    async def get_user_internal(self, user_id: int):
+        """ORM-пользователь для внутренних эндпоинтов (verify / by-email)."""
+        return await self.user_repo.get_by_id(user_id)
+
+    async def get_user_by_email(self, email: str):
+        """Поиск по email для organization_service (этап 2)."""
+        return await self.user_repo.get_by_email(email)
+
     async def get_user_for_feed(self, user_id: int) -> Optional[Dict[str, Any]]:
         """Получение данных пользователя для Feed Service"""
         user = await self.user_repo.get_by_id(user_id)

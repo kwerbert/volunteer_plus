@@ -28,7 +28,12 @@ from app.services.event_service.db.models import (
 )
 
 # --- Модели остальных сервисов (volunteer_plus.db) ---
-from app.services.organization_service.db.models import Category, Organization
+from app.services.organization_service.db.models import (
+    Category,
+    Organization,
+    OrganizationOrganizer,
+    OrgOrganizerRole,
+)
 from app.services.subscription_service.db.models import Subscription
 
 # --- Модели user_service (users.db) ---
@@ -95,6 +100,7 @@ async def seed_all() -> None:
     async with volunteer_session_maker() as session:
         await seed_categories(session)
         await seed_organizations(session)
+        await seed_organization_organizers
         await seed_events(session)
         await seed_participations(session)
         await seed_subscriptions(session)
@@ -174,6 +180,31 @@ async def seed_organizer_applications(session: AsyncSession) -> None:
                 reviewed_by=3,
                 reviewed_at=now - timedelta(days=1),
                 rejection_reason="Недостаточно информации о деятельности",
+            ),
+        ]
+    )
+    await session.flush()
+
+
+async def seed_organization_organizers(session: AsyncSession) -> None:
+    """Владельцы сидовых организаций (этап 2): user 2 → org 1, user 4 → org 2."""
+    session.add_all(
+        [
+            OrganizationOrganizer(
+                organization_id=1,
+                user_id=2,
+                role_in_org=OrgOrganizerRole.OWNER,
+                added_by=2,
+                added_at=now_utc(),
+                is_active=True,
+            ),
+            OrganizationOrganizer(
+                organization_id=2,
+                user_id=4,
+                role_in_org=OrgOrganizerRole.OWNER,
+                added_by=4,
+                added_at=now_utc(),
+                is_active=True,
             ),
         ]
     )
