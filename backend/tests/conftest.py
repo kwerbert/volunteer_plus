@@ -17,6 +17,7 @@ def clear_all_settings_cache():
         from app.services.analytics_service.config import (
             get_settings as analytics_get_settings,
         )
+
         analytics_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
@@ -24,6 +25,7 @@ def clear_all_settings_cache():
     # Очищаем кэш feed_service
     try:
         from app.services.feed_service.config import get_settings as feed_get_settings
+
         feed_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
@@ -33,6 +35,7 @@ def clear_all_settings_cache():
         from app.services.subscription_service.config import (
             get_settings as sub_get_settings,
         )
+
         sub_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
@@ -42,6 +45,7 @@ def clear_all_settings_cache():
         from app.services.organization_service.config import (
             get_settings as org_get_settings,
         )
+
         org_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
@@ -49,6 +53,7 @@ def clear_all_settings_cache():
     # ДОБАВЛЕНО: Очищаем кэш user_service
     try:
         from app.services.user_service.config import get_settings as user_get_settings
+
         user_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
@@ -60,15 +65,19 @@ def clear_all_settings_cache():
         from app.services.analytics_service.config import (
             get_settings as analytics_get_settings,
         )
+
         analytics_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
 
     try:
         from app.services.user_service.config import get_settings as user_get_settings
+
         user_get_settings.cache_clear()
     except (ImportError, AttributeError):
         pass
+
+
 # ============================================================================
 # ХЕЛПЕР: сбор путей из FastAPI-приложения
 # ============================================================================

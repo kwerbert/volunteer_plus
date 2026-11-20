@@ -11,6 +11,7 @@ from app.services.notification_service.config import (
 
 # === Request Schemas ===
 
+
 class CreateNotificationRequest(BaseModel):
     user_id: int = Field(..., gt=0)
     title: str = Field(..., min_length=1, max_length=255)
@@ -32,6 +33,7 @@ class RegisterTokenRequest(BaseModel):
 
 
 # === Response Schemas ===
+
 
 class NotificationResponse(BaseModel):
     id: int
@@ -79,6 +81,7 @@ class HealthResponse(BaseModel):
 
 
 # === WebSocket Schemas ===
+
 
 class WebSocketNotificationMessage(BaseModel):
     type: str = "notification"

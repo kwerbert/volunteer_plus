@@ -11,7 +11,7 @@ from app.services.analytics_service.db.session import engine, init_db
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ app = FastAPI(
     title=settings.SERVICE_NAME,
     description="Микросервис аналитики волонтерства",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -53,16 +53,13 @@ async def root():
         "service": settings.SERVICE_NAME,
         "status": "running",
         "version": "1.0.0",
-        "docs": "/docs"
+        "docs": "/docs",
     }
 
 
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "service": settings.SERVICE_NAME
-    }
+    return {"status": "healthy", "service": settings.SERVICE_NAME}
 
 
 if __name__ == "__main__":
@@ -70,5 +67,5 @@ if __name__ == "__main__":
         "app.services.analytics_service.main:app",
         host="0.0.0.0",
         port=8005,
-        reload=True
+        reload=True,
     )

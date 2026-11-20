@@ -1,4 +1,5 @@
 """Бизнес-логика Chat Service"""
+
 import logging
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple
@@ -14,8 +15,10 @@ from app.services.chat_service.db.repository import ChatRepository
 
 logger = logging.getLogger(__name__)
 
+
 class ChatService:
     """Основной сервис для операций с чатами"""
+
     def __init__(self, repo: ChatRepository):
         self.repo = repo
 
@@ -24,10 +27,11 @@ class ChatService:
         self,
         chat_id: int,
         event_end_time: datetime,
-        custom_deletion_config: Optional[dict] = None
+        custom_deletion_config: Optional[dict] = None,
     ) -> bool:
         """Планирует удаление чата мероприятия"""
         from datetime import timedelta, timezone
+
         msk_tz = timezone(timedelta(hours=3))
         event_end_msk = event_end_time.astimezone(msk_tz)
 
@@ -36,8 +40,13 @@ class ChatService:
             scheduled_time = event_end_msk + timedelta(hours=delay_hours)
         else:
             tomorrow_midnight = datetime(
-                event_end_msk.year, event_end_msk.month, event_end_msk.day,
-                0, 0, 0, tzinfo=msk_tz
+                event_end_msk.year,
+                event_end_msk.month,
+                event_end_msk.day,
+                0,
+                0,
+                0,
+                tzinfo=msk_tz,
             ) + timedelta(days=1)
             scheduled_time = tomorrow_midnight
 
@@ -48,7 +57,7 @@ class ChatService:
         await self.repo.update_chat(
             chat_id,
             scheduled_delete_at=scheduled_time,
-            deletion_config=custom_deletion_config
+            deletion_config=custom_deletion_config,
         )
         return True
 
@@ -62,11 +71,7 @@ class ChatService:
             deleted_count += 1
         return deleted_count
 
-    async def delete_organizer_chat(
-        self,
-        chat_id: int,
-        user_id: int
-    ) -> bool:
+    async def delete_organizer_chat(self, chat_id: int, user_id: int) -> bool:
         """Удаление личного чата с организатором (любой стороной)"""
         chat = await self.repo.get_chat_by_id(chat_id)
         if not chat or chat.chat_type != ChatTypeEnum.ORGANIZER:
@@ -76,13 +81,13 @@ class ChatService:
         return await self.repo.deactivate_chat(chat_id)
 
     async def create_chat(
-            self,
-            chat_type: ChatTypeEnum,
-            creator_id: int,
-            participant_ids: List[int],
-            title: Optional[str] = None,
-            event_id: Optional[int] = None,
-            organization_id: Optional[int] = None
+        self,
+        chat_type: ChatTypeEnum,
+        creator_id: int,
+        participant_ids: List[int],
+        title: Optional[str] = None,
+        event_id: Optional[int] = None,
+        organization_id: Optional[int] = None,
     ) -> ChatResponse:
         # ORGANIZER-чат ищем по (creator_id, organization_id)
         if chat_type == ChatTypeEnum.ORGANIZER and organization_id is not None:
@@ -94,7 +99,7 @@ class ChatService:
             chat_type=chat_type,
             title=title,
             event_id=event_id,
-            organization_id=organization_id
+            organization_id=organization_id,
         )
         # Роли различаются по типу чата:
         # ORGANIZER — создатель (волонтёр) = member, владелец организации = admin
@@ -112,10 +117,7 @@ class ChatService:
         return await self._build_chat_response(chat, creator_id)
 
     async def get_user_chats(
-        self,
-        user_id: int,
-        limit: int = 20,
-        offset: int = 0
+        self, user_id: int, limit: int = 20, offset: int = 0
     ) -> Tuple[List[ChatResponse], int]:
         """Получение списка чатов пользователя"""
         chats = await self.repo.get_user_chats(user_id, limit=limit, offset=offset)
@@ -128,9 +130,7 @@ class ChatService:
         return responses, total
 
     async def get_chat_with_details(
-        self,
-        chat_id: int,
-        current_user_id: int
+        self, chat_id: int, current_user_id: int
     ) -> Optional[ChatResponse]:
         """Получение чата с деталями и unread count"""
         chat = await self.repo.get_chat_by_id(chat_id)
@@ -153,19 +153,22 @@ class ChatService:
 
     # === Message Operations ===
     async def send_message(
-            self,
-            chat_id: int,
-            sender_id: int,
-            content: str,
-            message_type: str = "text",
-            attachment_url: Optional[str] = None
+        self,
+        chat_id: int,
+        sender_id: int,
+        content: str,
+        message_type: str = "text",
+        attachment_url: Optional[str] = None,
     ) -> MessageResponse:
         if not await self.repo.user_has_access_to_chat(chat_id, sender_id):
             raise ValueError("Нет доступа к чату")
 
         message = await self.repo.create_message(
-            chat_id=chat_id, sender_id=sender_id, content=content,
-            message_type=message_type, attachment_url=attachment_url
+            chat_id=chat_id,
+            sender_id=sender_id,
+            content=content,
+            message_type=message_type,
+            attachment_url=attachment_url,
         )
         # updated_at обновится сам через onupdate
         await self.repo.update_chat(chat_id)
@@ -176,10 +179,13 @@ class ChatService:
         chat_id: int,
         limit: int = 20,
         offset: int = 0,
-        before_message_id: Optional[int] = None
+        before_message_id: Optional[int] = None,
     ) -> Tuple[List[MessageResponse], int]:
         messages = await self.repo.get_messages(
-            chat_id=chat_id, limit=limit, offset=offset, before_message_id=before_message_id
+            chat_id=chat_id,
+            limit=limit,
+            offset=offset,
+            before_message_id=before_message_id,
         )
         all_msgs = await self.repo.get_messages(chat_id, limit=10000)
         total = len(all_msgs)
@@ -198,29 +204,43 @@ class ChatService:
 
     # === Helpers ===
     async def _build_chat_response(
-        self,
-        chat: Chat,
-        current_user_id: int
+        self, chat: Chat, current_user_id: int
     ) -> ChatResponse:
         last_messages = await self.repo.get_messages(chat.id, limit=1)
         last_message = last_messages[0].content if last_messages else None
         unread = await self.repo.get_unread_count(chat.id, current_user_id)
         members = await self.repo.get_chat_members(chat.id)
         member_responses = [
-            ChatMemberResponse(user_id=m.user_id, role=m.role, joined_at=m.joined_at, is_muted=m.is_muted)
+            ChatMemberResponse(
+                user_id=m.user_id,
+                role=m.role,
+                joined_at=m.joined_at,
+                is_muted=m.is_muted,
+            )
             for m in members
         ]
         return ChatResponse(
-            id=chat.id, chat_type=chat.chat_type, title=chat.title,
-            event_id=chat.event_id, organization_id=chat.organization_id,
-            created_at=chat.created_at, updated_at=chat.updated_at,
-            last_message=last_message, unread_count=unread, members=member_responses
+            id=chat.id,
+            chat_type=chat.chat_type,
+            title=chat.title,
+            event_id=chat.event_id,
+            organization_id=chat.organization_id,
+            created_at=chat.created_at,
+            updated_at=chat.updated_at,
+            last_message=last_message,
+            unread_count=unread,
+            members=member_responses,
         )
 
     def _message_to_response(self, message: Message) -> MessageResponse:
         return MessageResponse(
-            id=message.id, chat_id=message.chat_id, sender_id=message.sender_id,
-            content=message.content, message_type=message.message_type,
-            attachment_url=message.attachment_url, is_read=message.is_read,
-            created_at=message.created_at, updated_at=message.updated_at
+            id=message.id,
+            chat_id=message.chat_id,
+            sender_id=message.sender_id,
+            content=message.content,
+            message_type=message.message_type,
+            attachment_url=message.attachment_url,
+            is_read=message.is_read,
+            created_at=message.created_at,
+            updated_at=message.updated_at,
         )

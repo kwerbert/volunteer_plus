@@ -11,7 +11,7 @@ from app.services.subscription_service.db.session import engine, init_db
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ app = FastAPI(
     title=settings.SERVICE_NAME,
     description="Микросервис подписок на организации",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -57,5 +57,5 @@ if __name__ == "__main__":
         "app.services.subscription_service.main:app",
         host="0.0.0.0",
         port=settings.SERVICE_PORT,
-        reload=True
+        reload=True,
     )

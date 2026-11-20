@@ -17,6 +17,7 @@ async_session_maker = async_sessionmaker(
     autoflush=False,
 )
 
+
 async def get_db_session() -> AsyncSession:
     """Dependency для FastAPI: получение сессии БД"""
     async with async_session_maker() as session:

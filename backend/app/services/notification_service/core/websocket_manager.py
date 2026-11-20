@@ -44,10 +44,7 @@ class WebSocketManager:
 
         for connection in connections:
             try:
-                await asyncio.wait_for(
-                    connection.send_json(message),
-                    timeout=5.0
-                )
+                await asyncio.wait_for(connection.send_json(message), timeout=5.0)
                 success_count += 1
             except (RuntimeError, asyncio.TimeoutError):
                 # Connection closed or broken
@@ -56,7 +53,10 @@ class WebSocketManager:
 
     def is_user_online(self, user_id: int) -> bool:
         """Проверка: есть ли у пользователя активные WebSocket-подключения"""
-        return user_id in self.active_connections and len(self.active_connections[user_id]) > 0
+        return (
+            user_id in self.active_connections
+            and len(self.active_connections[user_id]) > 0
+        )
 
     async def broadcast_heartbeat(self) -> None:
         """Отправить heartbeat всем подключённым клиентам (для keep-alive)"""
@@ -69,9 +69,12 @@ class WebSocketManager:
 
         for conn in all_connections:
             try:
-                await conn.send_json({"type": "heartbeat", "timestamp": asyncio.get_event_loop().time()})
-            except:
+                await conn.send_json(
+                    {"type": "heartbeat", "timestamp": asyncio.get_event_loop().time()}
+                )
+            except Exception:
                 pass  # Игнорируем ошибки, подключение закроется само
+
 
 @lru_cache()
 def get_ws_manager() -> "WebSocketManager":

@@ -9,15 +9,16 @@ from .models import Chat, ChatMember, ChatTypeEnum, Message
 
 class ChatRepository:
     """Репозиторий для операций с чатами"""
+
     def __init__(self, session: AsyncSession):
         self.session = session
 
     async def get_chats_for_deletion(self, current_time: datetime) -> List[Chat]:
         stmt = select(Chat).where(
             Chat.chat_type == ChatTypeEnum.EVENT,
-            Chat.is_active == True,
-            Chat.scheduled_delete_at != None,
-            Chat.scheduled_delete_at <= current_time
+            Chat.is_active,
+            Chat.scheduled_delete_at.isnot(None),
+            Chat.scheduled_delete_at <= current_time,
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -35,11 +36,13 @@ class ChatRepository:
         chat_type: ChatTypeEnum,
         title: Optional[str] = None,
         event_id: Optional[int] = None,
-        organization_id: Optional[int] = None
+        organization_id: Optional[int] = None,
     ) -> Chat:
         chat = Chat(
-            chat_type=chat_type, title=title,
-            event_id=event_id, organization_id=organization_id
+            chat_type=chat_type,
+            title=title,
+            event_id=event_id,
+            organization_id=organization_id,
         )
         self.session.add(chat)
         await self.session.commit()
@@ -47,37 +50,37 @@ class ChatRepository:
         return chat
 
     async def get_chat_by_id(self, chat_id: int) -> Optional[Chat]:
-        stmt = select(Chat).where(Chat.id == chat_id, Chat.is_active == True)
+        stmt = select(Chat).where(Chat.id == chat_id, Chat.is_active)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_user_chats(
-        self,
-        user_id: int,
-        active_only: bool = True,
-        limit: int = 20,
-        offset: int = 0
+        self, user_id: int, active_only: bool = True, limit: int = 20, offset: int = 0
     ) -> List[Chat]:
         stmt = (
             select(Chat)
             .join(ChatMember, ChatMember.chat_id == Chat.id)
-            .where(ChatMember.user_id == user_id, ChatMember.left_at == None)
+            .where(ChatMember.user_id == user_id, ChatMember.left_at.is_(None))
         )
         if active_only:
-            stmt = stmt.where(Chat.is_active == True)
+            stmt = stmt.where(Chat.is_active)
         stmt = stmt.order_by(Chat.updated_at.desc()).limit(limit).offset(offset)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def deactivate_chat(self, chat_id: int) -> bool:
-        stmt = update(Chat).where(Chat.id == chat_id).values(
-            is_active=False, updated_at=datetime.now(timezone.utc)
+        stmt = (
+            update(Chat)
+            .where(Chat.id == chat_id)
+            .values(is_active=False, updated_at=datetime.now(timezone.utc))
         )
         await self.session.execute(stmt)
         await self.session.commit()
         return True
 
-    async def add_member(self, chat_id: int, user_id: int, role: str = "member") -> ChatMember:
+    async def add_member(
+        self, chat_id: int, user_id: int, role: str = "member"
+    ) -> ChatMember:
         existing = await self.get_member(chat_id, user_id)
         if existing and existing.left_at is None:
             return existing
@@ -96,25 +99,33 @@ class ChatRepository:
 
     async def get_chat_members(self, chat_id: int) -> List[ChatMember]:
         stmt = select(ChatMember).where(
-            ChatMember.chat_id == chat_id, ChatMember.left_at == None
+            ChatMember.chat_id == chat_id, ChatMember.left_at.is_(None)
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def remove_member(self, chat_id: int, user_id: int) -> bool:
-        stmt = update(ChatMember).where(
-            ChatMember.chat_id == chat_id,
-            ChatMember.user_id == user_id,
-            ChatMember.left_at == None
-        ).values(left_at=datetime.now(timezone.utc))
+        stmt = (
+            update(ChatMember)
+            .where(
+                ChatMember.chat_id == chat_id,
+                ChatMember.user_id == user_id,
+                ChatMember.left_at.is_(None),
+            )
+            .values(left_at=datetime.now(timezone.utc))
+        )
         await self.session.execute(stmt)
         await self.session.commit()
         return True
 
-    async def update_member_role(self, chat_id: int, user_id: int, role: str) -> Optional[ChatMember]:
-        stmt = update(ChatMember).where(
-            ChatMember.chat_id == chat_id, ChatMember.user_id == user_id
-        ).values(role=role)
+    async def update_member_role(
+        self, chat_id: int, user_id: int, role: str
+    ) -> Optional[ChatMember]:
+        stmt = (
+            update(ChatMember)
+            .where(ChatMember.chat_id == chat_id, ChatMember.user_id == user_id)
+            .values(role=role)
+        )
         await self.session.execute(stmt)
         await self.session.commit()
         return await self.get_member(chat_id, user_id)
@@ -125,11 +136,14 @@ class ChatRepository:
         sender_id: int,
         content: str,
         message_type: str = "text",
-        attachment_url: Optional[str] = None
+        attachment_url: Optional[str] = None,
     ) -> Message:
         message = Message(
-            chat_id=chat_id, sender_id=sender_id, content=content,
-            message_type=message_type, attachment_url=attachment_url
+            chat_id=chat_id,
+            sender_id=sender_id,
+            content=content,
+            message_type=message_type,
+            attachment_url=attachment_url,
         )
         self.session.add(message)
         await self.session.commit()
@@ -141,9 +155,13 @@ class ChatRepository:
         chat_id: int,
         limit: int = 20,
         offset: int = 0,
-        before_message_id: Optional[int] = None
+        before_message_id: Optional[int] = None,
     ) -> List[Message]:
-        stmt = select(Message).where(Message.chat_id == chat_id).order_by(Message.created_at.desc())
+        stmt = (
+            select(Message)
+            .where(Message.chat_id == chat_id)
+            .order_by(Message.created_at.desc())
+        )
         if before_message_id:
             before_msg = await self.session.get(Message, before_message_id)
             if before_msg:
@@ -157,19 +175,25 @@ class ChatRepository:
         return await self.session.get(Message, message_id)
 
     async def mark_message_read(self, message_id: int) -> Optional[Message]:
-        stmt = update(Message).where(Message.id == message_id).values(
-            is_read=True, read_at=datetime.now(timezone.utc)
+        stmt = (
+            update(Message)
+            .where(Message.id == message_id)
+            .values(is_read=True, read_at=datetime.now(timezone.utc))
         )
         await self.session.execute(stmt)
         await self.session.commit()
         return await self.get_message_by_id(message_id)
 
     async def mark_chat_messages_read(self, chat_id: int, user_id: int) -> int:
-        stmt = update(Message).where(
-            Message.chat_id == chat_id,
-            Message.sender_id != user_id,
-            Message.is_read == False
-        ).values(is_read=True, read_at=datetime.now(timezone.utc))
+        stmt = (
+            update(Message)
+            .where(
+                Message.chat_id == chat_id,
+                Message.sender_id != user_id,
+                Message.is_read.is_(False),
+            )
+            .values(is_read=True, read_at=datetime.now(timezone.utc))
+        )
         result = await self.session.execute(stmt)
         await self.session.commit()
         return result.rowcount
@@ -178,7 +202,7 @@ class ChatRepository:
         stmt = select(func.count(Message.id)).where(
             Message.chat_id == chat_id,
             Message.sender_id != user_id,
-            Message.is_read == False
+            Message.is_read.is_(False),
         )
         result = await self.session.execute(stmt)
         return result.scalar() or 0
@@ -188,9 +212,7 @@ class ChatRepository:
         return member is not None and member.left_at is None
 
     async def find_organizer_chat(
-            self,
-            user_id: int,
-            organization_id: int
+        self, user_id: int, organization_id: int
     ) -> Optional[Chat]:
         """Поиск активного ORGANIZER-чата пользователя с организацией."""
         stmt = (
@@ -199,9 +221,9 @@ class ChatRepository:
             .where(
                 Chat.chat_type == ChatTypeEnum.ORGANIZER,
                 Chat.organization_id == organization_id,
-                Chat.is_active == True,
+                Chat.is_active,
                 ChatMember.user_id == user_id,
-                ChatMember.left_at == None,
+                ChatMember.left_at.is_(None),
             )
         )
         result = await self.session.execute(stmt)
@@ -209,33 +231,26 @@ class ChatRepository:
 
     async def find_event_chat(self, event_id: int) -> Optional[Chat]:
         """Поиск активного чата мероприятия по event_id."""
-        stmt = (
-            select(Chat)
-            .where(
-                Chat.chat_type == ChatTypeEnum.EVENT,
-                Chat.event_id == event_id,
-                Chat.is_active == True,
-            )
+        stmt = select(Chat).where(
+            Chat.chat_type == ChatTypeEnum.EVENT,
+            Chat.event_id == event_id,
+            Chat.is_active,
         )
         result = await self.session.execute(stmt)
         return result.scalars().first()
 
-    async def find_personal_chat(
-        self,
-        user1_id: int,
-        user2_id: int
-    ) -> Optional[Chat]:
+    async def find_personal_chat(self, user1_id: int, user2_id: int) -> Optional[Chat]:
         """Поиск существующего личного чата (ORGANIZER) между двумя пользователями"""
         stmt = (
             select(Chat)
             .join(ChatMember, ChatMember.chat_id == Chat.id)
             .where(
                 Chat.chat_type == ChatTypeEnum.ORGANIZER,
-                Chat.is_active == True,
+                Chat.is_active,
                 or_(
-                    and_(ChatMember.user_id == user1_id, ChatMember.left_at == None),
-                    and_(ChatMember.user_id == user2_id, ChatMember.left_at == None)
-                )
+                    and_(ChatMember.user_id == user1_id, ChatMember.left_at.is_(None)),
+                    and_(ChatMember.user_id == user2_id, ChatMember.left_at.is_(None)),
+                ),
             )
             .group_by(Chat.id)
             .having(func.count(ChatMember.id) == 2)

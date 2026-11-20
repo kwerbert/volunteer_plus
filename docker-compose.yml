@@ -67,6 +67,7 @@ services:
       ORGANIZATION_SERVICE_PORT: "8004"
       ORGANIZATION_DATABASE_URL: ${VOLUNTEER_DB_URL}
       ORGANIZATION_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      ORGANIZATION_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       ORGANIZATION_USER_SERVICE_URL: http://user_service:8008
       ORGANIZATION_EVENT_SERVICE_URL: http://event_service:8003
     ports: ["8004:8004"]
@@ -85,10 +86,13 @@ services:
       EVENT_SERVICE_PORT: "8003"
       EVENT_DATABASE_URL: ${VOLUNTEER_DB_URL}
       EVENT_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      EVENT_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      EVENT_ORGANIZATION_SERVICE_URL: http://organization_service:8004
       EVENT_CHAT_SERVICE_URL: http://chat_service:8007
     ports: ["8003:8003"]
     depends_on:
       user_service: {condition: service_healthy}
+      organization_service: {condition: service_healthy}
     healthcheck:
       <<: *health
       test: ["CMD", "curl", "-fsS", "http://localhost:8003/health"]

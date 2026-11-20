@@ -21,7 +21,9 @@ async def verify_user(user_id: int) -> bool:
             ) as response:
                 if response.status == 200:
                     data = await response.json()
-                    return bool(data.get("exists", False)) and bool(data.get("is_active", False))
+                    return bool(data.get("exists", False)) and bool(
+                        data.get("is_active", False)
+                    )
                 if response.status == 404:
                     logger.warning(f"User with ID {user_id} not found")
                     return False
@@ -48,7 +50,9 @@ async def verify_organization(org_id: int) -> bool:
                 if response.status == 404:
                     logger.warning(f"Organization with ID {org_id} not found")
                     return False
-                logger.error(f"Error checking Organization {org_id}: HTTP {response.status}")
+                logger.error(
+                    f"Error checking Organization {org_id}: HTTP {response.status}"
+                )
                 return False
     except Exception as e:
         logger.error(f"Connection error to Organization service: {e}")

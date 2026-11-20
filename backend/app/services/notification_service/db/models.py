@@ -15,6 +15,7 @@ Base = declarative_base()
 
 class NotificationToken(Base):
     """Push-токены устройств пользователей"""
+
     __tablename__ = "notification_tokens"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -29,6 +30,7 @@ class NotificationToken(Base):
 
 class Notification(Base):
     """История уведомлений"""
+
     __tablename__ = "notifications"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -45,21 +47,28 @@ class Notification(Base):
 
     # Relationships
     push_logs = relationship(
-        "PushLog", back_populates="notification",
-        lazy="select", cascade="all, delete-orphan"
+        "PushLog",
+        back_populates="notification",
+        lazy="select",
+        cascade="all, delete-orphan",
     )
 
 
 class PushLog(Base):
     """Лог отправки push-уведомлений (для отладки)"""
+
     __tablename__ = "push_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    notification_id = Column(Integer, ForeignKey("notifications.id"), nullable=False, index=True)
+    notification_id = Column(
+        Integer, ForeignKey("notifications.id"), nullable=False, index=True
+    )
     device_token = Column(String(255), nullable=False)
     status = Column(SQLEnum(PushStatus), nullable=False)
     error_message = Column(String, nullable=True)
     sent_at = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
-    notification = relationship("Notification", back_populates="push_logs", lazy="select")
+    notification = relationship(
+        "Notification", back_populates="push_logs", lazy="select"
+    )

@@ -1,4 +1,5 @@
 """API эндпоинты Chat Service"""
+
 import asyncio
 import json
 import logging
@@ -36,19 +37,23 @@ router = APIRouter(prefix="/api/v1", tags=["Chats"])
 
 # Храним ссылки на фоновые задачи, чтобы их не убил GC
 _background_tasks: set[asyncio.Task] = set()
+
+
 def _spawn_background(coro) -> None:
     """Запустить корутину в фоне и удержать ссылку до завершения."""
     task = asyncio.create_task(coro)
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)
 
+
 # === Чаты ===
+
 
 @router.post("/chats", response_model=ChatResponse, status_code=201)
 async def create_chat(
-        request: ChatCreateRequest,
-        current_user_id: int = Depends(get_current_user_id),
-        db: AsyncSession = Depends(get_db)
+    request: ChatCreateRequest,
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
 ):
     """Создание нового чата"""
     service = ChatService(ChatRepository(db))
@@ -58,7 +63,7 @@ async def create_chat(
         request.chat_type.value,
         request.participant_ids,
         request.organization_id,
-        request.event_id
+        request.event_id,
     )
 
     try:
@@ -68,7 +73,7 @@ async def create_chat(
             participant_ids=request.participant_ids,
             title=request.title,
             event_id=request.event_id,
-            organization_id=request.organization_id
+            organization_id=request.organization_id,
         )
         return chat
     except ValueError as e:
@@ -77,35 +82,33 @@ async def create_chat(
 
 @router.get("/chats", response_model=ChatListResponse)
 async def get_user_chats(
-        current_user_id: int = Depends(get_current_user_id),
-        page: int = Query(1, ge=1),
-        page_size: int = Query(20, ge=1, le=100),
-        db: AsyncSession = Depends(get_db)
+    current_user_id: int = Depends(get_current_user_id),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
 ):
     """Получение списка чатов пользователя"""
     service = ChatService(ChatRepository(db))
 
     offset = (page - 1) * page_size
     chats, total = await service.get_user_chats(
-        user_id=current_user_id,
-        limit=page_size,
-        offset=offset
+        user_id=current_user_id, limit=page_size, offset=offset
     )
 
     return ChatListResponse(
         chats=chats,
         total=total,
         has_more=offset + len(chats) < total,
-        next_offset=offset + page_size if offset + len(chats) < total else None
+        next_offset=offset + page_size if offset + len(chats) < total else None,
     )
 
 
 @router.get("/chats/{chat_id}", response_model=ChatResponse)
 async def get_chat(
-        chat_id: int,
-        _: bool = Depends(check_chat_access),
-        current_user_id: int = Depends(get_current_user_id),
-        db: AsyncSession = Depends(get_db)
+    chat_id: int,
+    _: bool = Depends(check_chat_access),
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
 ):
     """Получение деталей чата"""
     service = ChatService(ChatRepository(db))
@@ -118,10 +121,10 @@ async def get_chat(
 
 @router.delete("/chats/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def leave_chat(
-        chat_id: int,
-        _: bool = Depends(check_chat_access),
-        current_user_id: int = Depends(get_current_user_id),
-        db: AsyncSession = Depends(get_db)
+    chat_id: int,
+    _: bool = Depends(check_chat_access),
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
 ):
     """Покинуть чат (или удалить для personal чатов)"""
     service = ChatService(ChatRepository(db))
@@ -131,14 +134,17 @@ async def leave_chat(
 
 # === Сообщения ===
 
+
 @router.get("/chats/{chat_id}/messages", response_model=MessagesListResponse)
 async def get_chat_messages(
-        chat_id: int,
-        _: bool = Depends(check_chat_access),
-        page: int = Query(1, ge=1),
-        page_size: int = Query(20, ge=1, le=100),
-        before_message_id: Optional[int] = Query(None, description="ID сообщения для пагинации назад"),
-        db: AsyncSession = Depends(get_db)
+    chat_id: int,
+    _: bool = Depends(check_chat_access),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    before_message_id: Optional[int] = Query(
+        None, description="ID сообщения для пагинации назад"
+    ),
+    db: AsyncSession = Depends(get_db),
 ):
     """Получение сообщений чата с пагинацией"""
     service = ChatService(ChatRepository(db))
@@ -148,24 +154,26 @@ async def get_chat_messages(
         chat_id=chat_id,
         limit=page_size,
         offset=offset,
-        before_message_id=before_message_id
+        before_message_id=before_message_id,
     )
 
     return MessagesListResponse(
         messages=messages,
         total=total,
         has_more=offset + len(messages) < total,
-        next_offset=offset + page_size if offset + len(messages) < total else None
+        next_offset=offset + page_size if offset + len(messages) < total else None,
     )
 
 
-@router.post("/chats/{chat_id}/messages", response_model=MessageResponse, status_code=201)
+@router.post(
+    "/chats/{chat_id}/messages", response_model=MessageResponse, status_code=201
+)
 async def send_message(
-        chat_id: int,
-        request: MessageCreateRequest,
-        _: bool = Depends(check_chat_access),
-        current_user_id: int = Depends(get_current_user_id),
-        db: AsyncSession = Depends(get_db)
+    chat_id: int,
+    request: MessageCreateRequest,
+    _: bool = Depends(check_chat_access),
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
 ):
     """Отправка сообщения в чат"""
     service = ChatService(ChatRepository(db))
@@ -175,14 +183,14 @@ async def send_message(
         sender_id=current_user_id,
         content=request.content,
         message_type=request.message_type.value,
-        attachment_url=request.attachment_url
+        attachment_url=request.attachment_url,
     )
 
     await _send_notification_to_participants(
         chat_id=chat_id,
         sender_id=current_user_id,
         message_content=request.content,
-        db=db
+        db=db,
     )
 
     message_response = MessageResponse.model_validate(message)
@@ -193,9 +201,9 @@ async def send_message(
 
 @router.put("/messages/{message_id}/read", response_model=MessageResponse)
 async def mark_message_read(
-        message_id: int,
-        current_user_id: int = Depends(get_current_user_id),
-        db: AsyncSession = Depends(get_db)
+    message_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
 ):
     """Отметка сообщения как прочитанного"""
     service = ChatService(ChatRepository(db))
@@ -214,10 +222,10 @@ async def mark_message_read(
 
 @router.post("/chats/{chat_id}/read-all", response_model=dict)
 async def mark_all_read(
-        chat_id: int,
-        _: bool = Depends(check_chat_access),
-        current_user_id: int = Depends(get_current_user_id),
-        db: AsyncSession = Depends(get_db)
+    chat_id: int,
+    _: bool = Depends(check_chat_access),
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
 ):
     """Отметить все сообщения в чате как прочитанные"""
     service = ChatService(ChatRepository(db))
@@ -227,11 +235,12 @@ async def mark_all_read(
 
 # === Service-to-Service endpoints ===
 
+
 @router.get("/internal/chats/{chat_id}/members", response_model=List[int])
 async def get_chat_members_internal(
-        chat_id: int,
-        _: bool = Depends(verify_service_key),
-        db: AsyncSession = Depends(get_db)
+    chat_id: int,
+    _: bool = Depends(verify_service_key),
+    db: AsyncSession = Depends(get_db),
 ):
     """Получение списка участников чата (для внутренних вызовов)"""
     repo = ChatRepository(db)
@@ -241,9 +250,9 @@ async def get_chat_members_internal(
 
 @router.post("/chats/organizer/{org_id}", response_model=ChatResponse, status_code=201)
 async def create_organizer_chat(
-        org_id: int,
-        current_user_id: int = Depends(get_current_user_id),
-        db: AsyncSession = Depends(get_db_session)
+    org_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session),
 ):
     org = await _fetch_organization(org_id)
     if org is None:
@@ -267,9 +276,9 @@ async def create_organizer_chat(
 
 @router.post("/chats/event/{event_id}", response_model=ChatResponse, status_code=201)
 async def create_event_chat(
-        event_id: int,
-        current_user_id: int = Depends(get_current_user_id),
-        db: AsyncSession = Depends(get_db)
+    event_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
 ):
     if not await _verify_event(event_id):
         raise HTTPException(status_code=404, detail="Мероприятие не найдено")
@@ -279,12 +288,13 @@ async def create_event_chat(
         return await service._build_chat_response(existing, current_user_id)
     try:
         from datetime import datetime, timedelta, timezone
+
         event_end_time = datetime.now(timezone.utc) + timedelta(hours=4)
         chat = await service.create_chat(
             chat_type=ChatTypeEnum.EVENT,
             creator_id=current_user_id,
             participant_ids=[current_user_id],
-            event_id=event_id
+            event_id=event_id,
         )
         await service.schedule_event_chat_deletion(chat.id, event_end_time)
         return chat
@@ -294,9 +304,9 @@ async def create_event_chat(
 
 @router.delete("/chats/organizer/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_organizer_chat(
-        chat_id: int,
-        current_user_id: int = Depends(get_current_user_id),
-        db: AsyncSession = Depends(get_db)
+    chat_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Удаление личного чата с организатором
@@ -311,8 +321,7 @@ async def delete_organizer_chat(
 
 @router.post("/internal/cleanup-expired-chats", response_model=dict)
 async def cleanup_expired_chats(
-        _: bool = Depends(verify_service_key),
-        db: AsyncSession = Depends(get_db)
+    _: bool = Depends(verify_service_key), db: AsyncSession = Depends(get_db)
 ):
     """
     Очистка expired EVENT чатов
@@ -326,11 +335,12 @@ async def cleanup_expired_chats(
 
 # === Вспомогательные функции ===
 
+
 async def _validate_participants(
-        chat_type: str,
-        participant_ids: List[int],
-        organization_id: Optional[int],
-        event_id: Optional[int]
+    chat_type: str,
+    participant_ids: List[int],
+    organization_id: Optional[int],
+    event_id: Optional[int],
 ):
     """Валидация участников и связанных сущностей через внешние сервисы"""
 
@@ -355,9 +365,9 @@ async def _verify_user(user_id: int) -> bool:
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                    f"{settings.USER_SERVICE_URL}/api/v1/users/verify/{user_id}",
-                    headers={"X-Service-Key": settings.SERVICE_API_KEY},
-                    timeout=aiohttp.ClientTimeout(total=3)
+                f"{settings.USER_SERVICE_URL}/api/v1/users/verify/{user_id}",
+                headers={"X-Service-Key": settings.SERVICE_API_KEY},
+                timeout=aiohttp.ClientTimeout(total=3),
             ) as response:
                 if response.status == 200:
                     data = await response.json()
@@ -372,21 +382,22 @@ async def _verify_organization(org_id: int) -> bool:
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                    f"{settings.ORGANIZATION_SERVICE_URL}/api/v1/organizations/{org_id}",
-                    timeout=aiohttp.ClientTimeout(total=3)
+                f"{settings.ORGANIZATION_SERVICE_URL}/api/v1/organizations/{org_id}",
+                timeout=aiohttp.ClientTimeout(total=3),
             ) as response:
                 return response.status == 200
     except Exception as e:
         logger.error(f"Error verifying org {org_id}: {e}")
     return False
 
+
 async def _fetch_organization(org_id: int) -> Optional[dict]:
     """Полный объект организации из Organization Service (или None)."""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                    f"{settings.ORGANIZATION_SERVICE_URL}/api/v1/organizations/{org_id}",
-                    timeout=aiohttp.ClientTimeout(total=3)
+                f"{settings.ORGANIZATION_SERVICE_URL}/api/v1/organizations/{org_id}",
+                timeout=aiohttp.ClientTimeout(total=3),
             ) as response:
                 if response.status == 200:
                     return await response.json()
@@ -394,13 +405,14 @@ async def _fetch_organization(org_id: int) -> Optional[dict]:
         logger.error(f"Error fetching organization {org_id}: {e}")
     return None
 
+
 async def _verify_event(event_id: int) -> bool:
     """Проверка мероприятия через Event Service"""
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                    f"{settings.EVENT_SERVICE_URL}/api/v1/events/{event_id}",
-                    timeout=aiohttp.ClientTimeout(total=3)
+                f"{settings.EVENT_SERVICE_URL}/api/v1/events/{event_id}",
+                timeout=aiohttp.ClientTimeout(total=3),
             ) as response:
                 return response.status == 200
     except Exception as e:
@@ -409,10 +421,7 @@ async def _verify_event(event_id: int) -> bool:
 
 
 async def _send_notification_to_participants(
-        chat_id: int,
-        sender_id: int,
-        message_content: str,
-        db: AsyncSession
+    chat_id: int, sender_id: int, message_content: str, db: AsyncSession
 ):
     """
     Планирует отправку пуш-уведомлений участникам чата (fire-and-forget).
@@ -431,9 +440,7 @@ async def _send_notification_to_participants(
         )
 
         recipients = [
-            m.user_id
-            for m in members
-            if m.user_id != sender_id and not m.is_muted
+            m.user_id for m in members if m.user_id != sender_id and not m.is_muted
         ]
         if not recipients:
             return
@@ -459,10 +466,10 @@ _PUSH_RETRY_BACKOFF_SECONDS = 1.0
 
 
 async def _do_send_notifications(
-        chat_id: int,
-        sender_id: int,
-        preview: str,
-        recipients: list[int],
+    chat_id: int,
+    sender_id: int,
+    preview: str,
+    recipients: list[int],
 ):
     """Фоновая отправка пушей. Владеет сессией и закрывает её сам."""
     try:
@@ -485,11 +492,11 @@ async def _do_send_notifications(
 
 
 async def _send_one_push_with_retry(
-        session: aiohttp.ClientSession,
-        user_id: int,
-        chat_id: int,
-        sender_id: int,
-        body: str,
+    session: aiohttp.ClientSession,
+    user_id: int,
+    chat_id: int,
+    sender_id: int,
+    body: str,
 ) -> None:
     """Один push с retry-политикой.
 
@@ -549,11 +556,11 @@ async def _send_one_push_with_retry(
 
 
 async def _send_one_push(
-        session: aiohttp.ClientSession,
-        user_id: int,
-        chat_id: int,
-        sender_id: int,
-        body: str,
+    session: aiohttp.ClientSession,
+    user_id: int,
+    chat_id: int,
+    sender_id: int,
+    body: str,
 ) -> tuple[str, int | None]:
     """Один HTTP-вызов в notification_service.
 
@@ -574,10 +581,10 @@ async def _send_one_push(
             data={"chat_id": chat_id, "sender_id": sender_id},
         )
         async with session.post(
-                f"{settings.NOTIFICATION_SERVICE_URL}/api/v1/notifications",
-                json=notification.model_dump(mode="json"),  # enum'ы → строки "CHAT"/"HIGH"
-                headers={"X-Service-Key": settings.SERVICE_API_KEY},
-                timeout=aiohttp.ClientTimeout(total=2),
+            f"{settings.NOTIFICATION_SERVICE_URL}/api/v1/notifications",
+            json=notification.model_dump(mode="json"),  # enum'ы → строки "CHAT"/"HIGH"
+            headers={"X-Service-Key": settings.SERVICE_API_KEY},
+            timeout=aiohttp.ClientTimeout(total=2),
         ) as resp:
             body_text = await resp.text()
 
@@ -592,7 +599,10 @@ async def _send_one_push(
             # 2xx: notification_service может вернуть success=false/error=NO_TOKENS
             try:
                 body_json = json.loads(body_text)
-                if isinstance(body_json, dict) and body_json.get("error") == "NO_TOKENS":
+                if (
+                    isinstance(body_json, dict)
+                    and body_json.get("error") == "NO_TOKENS"
+                ):
                     return ("no_tokens", resp.status)
             except (ValueError, TypeError):
                 pass

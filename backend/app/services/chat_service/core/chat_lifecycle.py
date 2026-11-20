@@ -8,11 +8,9 @@ from app.services.chat_service.db.repository import ChatRepository
 
 logger = logging.getLogger(__name__)
 
+
 async def ensure_event_chat(
-    db: AsyncSession,
-    event_id: int,
-    user_id: int,
-    organization_id: int
+    db: AsyncSession, event_id: int, user_id: int, organization_id: int
 ) -> int:
     """
     Создаёт event-чат, если он не существует, и добавляет пользователя.
@@ -20,7 +18,7 @@ async def ensure_event_chat(
     """
     repo = ChatRepository(db)
     # Ищем чат по event_id
-    stmt = select(Chat).where(Chat.event_id == event_id, Chat.is_active == True)
+    stmt = select(Chat).where(Chat.event_id == event_id, Chat.is_active)
     result = await db.execute(stmt)
     chat = result.scalar_one_or_none()
 
@@ -30,7 +28,7 @@ async def ensure_event_chat(
             chat_type=ChatTypeEnum.EVENT,
             title=f"Мероприятие #{event_id}",
             event_id=event_id,
-            organization_id=organization_id
+            organization_id=organization_id,
         )
         logger.info(f"Created new event chat {chat.id} for event {event_id}")
 

@@ -21,7 +21,7 @@ class FeedRepository:
         processing_time_ms: int,
         event_count: int,
         cache_hit: bool,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         log = FeedServiceLog(
             user_id=user_id,
@@ -29,7 +29,7 @@ class FeedRepository:
             processing_time_ms=processing_time_ms,
             event_count=event_count,
             cache_hit=cache_hit,
-            error_message=error_message
+            error_message=error_message,
         )
         self.session.add(log)
         await self.session.commit()
@@ -42,8 +42,10 @@ class FeedRepository:
 
         if not logs:
             return {
-                "total_requests": 0, "avg_processing_time_ms": 0,
-                "cache_hit_rate_percent": 0, "error_rate_percent": 0
+                "total_requests": 0,
+                "avg_processing_time_ms": 0,
+                "cache_hit_rate_percent": 0,
+                "error_rate_percent": 0,
             }
 
         total_requests = len(logs)
@@ -55,11 +57,18 @@ class FeedRepository:
             "total_requests": total_requests,
             "avg_processing_time_ms": round(avg_time, 2),
             "cache_hit_rate_percent": round((cache_hits / total_requests) * 100, 2),
-            "error_rate_percent": round((errors / total_requests) * 100, 2)
+            "error_rate_percent": round((errors / total_requests) * 100, 2),
         }
 
+
 async def get_feed_repository(
-        db_session: AsyncSession = Depends(get_db_session),
-        settings=Depends(lambda: __import__('app.services.feed_service.config', fromlist=['settings']).settings)
+    db_session: AsyncSession = Depends(get_db_session),
+    settings=Depends(
+        lambda: (
+            __import__(
+                "app.services.feed_service.config", fromlist=["settings"]
+            ).settings
+        )
+    ),
 ) -> FeedRepository:
     return FeedRepository(session=db_session, settings=settings)

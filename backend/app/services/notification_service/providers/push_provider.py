@@ -7,12 +7,12 @@ class PushProvider(ABC):
 
     @abstractmethod
     async def send_push_notification(
-            self,
-            device_token: str,
-            title: str,
-            body: str,
-            data: Dict[str, str],
-            priority: str = "normal"
+        self,
+        device_token: str,
+        title: str,
+        body: str,
+        data: Dict[str, str],
+        priority: str = "normal",
     ) -> Dict[str, Any]:
         """
         Отправка push-уведомления

@@ -1,11 +1,12 @@
 """API эндпоинты User Service"""
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.services.user_service.api.deps import (
-    check_user_ownership,
     get_auth_service,
     get_current_user_id,
     get_user_service,
+    require_same_user,
     verify_service_key,
 )
 from app.services.user_service.api.schemas import (
@@ -15,6 +16,7 @@ from app.services.user_service.api.schemas import (
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
+    UserInternalResponse,
     UserProfileForFeedResponse,
     UserResponse,
     UserSettingsResponse,
@@ -22,180 +24,232 @@ from app.services.user_service.api.schemas import (
     UserUpdateRequest,
     UserVerifyResponse,
 )
-from app.services.user_service.core.auth_service import AuthService
-from app.services.user_service.core.service import UserService
 
 router = APIRouter(prefix="/api/v1")
 
+
 # === ПУБЛИЧНЫЕ ЭНДПОИНТЫ ===
-@router.post("/auth/register", response_model=TokenResponse, tags=["Auth"])
+
+
+@router.post(
+    "/auth/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
+)
 async def register(
     request: RegisterRequest,
-    auth_service: AuthService = Depends(get_auth_service)
+    auth_service=Depends(get_auth_service),
 ):
-    user_data, tokens = await auth_service.register(
-        email=request.email,
-        password=request.password,
-        full_name=request.full_name,
-        phone=request.phone
-    )
-    return tokens
+    """Регистрация нового пользователя"""
+    try:
+        user_data, tokens = await auth_service.register(
+            email=request.email,
+            password=request.password,
+            full_name=request.full_name,
+            phone=request.phone,
+        )
+        return tokens
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-@router.post("/auth/login", response_model=TokenResponse, tags=["Auth"])
+
+@router.post("/auth/login", response_model=TokenResponse)
 async def login(
     request: LoginRequest,
-    auth_service: AuthService = Depends(get_auth_service)
+    auth_service=Depends(get_auth_service),
 ):
-    user_data, tokens = await auth_service.login(
-        email=request.email,
-        password=request.password
-    )
+    try:
+        user_data, tokens = await auth_service.login(
+            request.email,
+            request.password,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return tokens
 
-@router.post("/auth/refresh", response_model=TokenResponse, tags=["Auth"])
-async def refresh_token(
+
+@router.post("/auth/refresh", response_model=TokenResponse)
+async def refresh_tokens(
     request: RefreshRequest,
-    auth_service: AuthService = Depends(get_auth_service)
+    auth_service=Depends(get_auth_service),
 ):
     try:
         tokens = await auth_service.refresh_tokens(request.refresh_token)
-        return tokens
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e),
         )
 
-@router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT, tags=["Auth"])
+    return tokens
+
+
+@router.post("/auth/logout")
 async def logout(
     request: RefreshRequest,
-    auth_service: AuthService = Depends(get_auth_service)
+    auth_service=Depends(get_auth_service),
 ):
-    await auth_service.logout(request.refresh_token)
-    return None
+    """Выход из системы"""
+    success = await auth_service.logout(request.refresh_token)
+    return {"success": success}
+
 
 # === ЗАЩИЩЁННЫЕ ЭНДПОИНТЫ ===
-@router.get("/users/{user_id}", response_model=UserResponse, tags=["Users"])
-async def get_user_profile(
-    user_id: int,
-    current_user_id: int = Depends(get_current_user_id),
-    _: bool = Depends(check_user_ownership),
-    user_service: UserService = Depends(get_user_service)
+
+
+@router.get("/users/me", response_model=UserResponse)
+async def get_current_user_profile(
+    user_id: int = Depends(get_current_user_id),
+    user_service=Depends(get_user_service),
 ):
     profile = await user_service.get_user_profile(user_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     return profile["user"]
 
-@router.put("/users/{user_id}", response_model=UserResponse, tags=["Users"])
-async def update_user_profile(
+
+@router.get("/users/{user_id}", response_model=UserResponse)
+async def get_user(user_id: int, user_service=Depends(get_user_service)):
+    profile = await user_service.get_user_profile(user_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    return profile["user"]
+
+
+@router.get("/users/{user_id}/profile")
+async def get_user_full_profile(
     user_id: int,
-    request: UserUpdateRequest,
-    current_user_id: int = Depends(get_current_user_id),
-    _: bool = Depends(check_user_ownership),
-    user_service: UserService = Depends(get_user_service)
+    user_service=Depends(get_user_service),
 ):
+    """Полный профиль: user + settings + location (вложенно).
+    Без response_model: структура вложенная, отдельной схемы под неё нет."""
+    profile = await user_service.get_user_profile(user_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    return profile
+
+
+@router.patch("/users/me", response_model=UserResponse)
+async def update_current_user(
+    request: UserUpdateRequest,
+    user_id: int = Depends(get_current_user_id),
+    user_service=Depends(get_user_service),
+):
+    """Обновление профиля текущего пользователя"""
     updated = await user_service.update_user_profile(
         user_id=user_id,
-        full_name=request.full_name,
-        phone=request.phone
+        update_data=request.model_dump(exclude_unset=True),
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     return updated
 
-@router.put("/users/{user_id}/location", response_model=LocationResponse, tags=["Users"])
-async def update_user_location(
+
+@router.patch("/users/{user_id}/location", response_model=LocationResponse)
+async def update_location(
     user_id: int,
     request: LocationRequest,
-    current_user_id: int = Depends(get_current_user_id),
-    _: bool = Depends(check_user_ownership),
-    user_service: UserService = Depends(get_user_service)
+    _: int = Depends(require_same_user),
+    user_service=Depends(get_user_service),
 ):
+    """Обновление геолокации пользователя"""
     location = await user_service.update_user_location(
         user_id=user_id,
         latitude=request.latitude,
         longitude=request.longitude,
-        accuracy=request.accuracy
+        accuracy=request.accuracy,
     )
+    if not location:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
     return location
 
-@router.get("/users/{user_id}/settings", response_model=UserSettingsResponse, tags=["Users"])
-async def get_user_settings(
+
+@router.get("/users/{user_id}/settings", response_model=UserSettingsResponse)
+async def get_settings(
     user_id: int,
-    current_user_id: int = Depends(get_current_user_id),
-    _: bool = Depends(check_user_ownership),
-    user_service: UserService = Depends(get_user_service)
+    user_service=Depends(get_user_service),
 ):
+    """Получение настроек пользователя"""
     settings = await user_service.get_user_settings(user_id)
     if not settings:
-        settings = await user_service.update_user_settings(user_id)
+        raise HTTPException(status_code=404, detail="Настройки не найдены")
     return settings
 
-# ЕДИНСТВЕННЫЙ эндпоинт обновления настроек (с main_organization_id)
-@router.put("/users/{user_id}/settings", response_model=UserSettingsResponse, tags=["Users"])
-async def update_user_settings(
+
+@router.patch("/users/{user_id}/settings", response_model=UserSettingsResponse)
+async def update_settings(
     user_id: int,
     request: UserSettingsUpdateRequest,
-    current_user_id: int = Depends(get_current_user_id),
-    _: bool = Depends(check_user_ownership),
-    user_service: UserService = Depends(get_user_service)
+    _: int = Depends(require_same_user),
+    user_service=Depends(get_user_service),
 ):
-    updated = await user_service.update_user_settings(
+    """Обновление настроек пользователя"""
+    settings = await user_service.update_user_settings(
         user_id=user_id,
-        search_radius_km=request.search_radius_km,
-        show_only_subscriptions=request.show_only_subscriptions,
-        notifications_enabled=request.notifications_enabled,
-        language=request.language,
-        theme=request.theme,
-        main_organization_id=request.main_organization_id
+        update_data=request.model_dump(exclude_unset=True),
     )
-    if not updated:
-        raise HTTPException(status_code=404, detail="Пользователь не найден")
-    return updated
+    if not settings:
+        raise HTTPException(status_code=404, detail="Настройки не найдены")
+    return settings
+
 
 # === SERVICE-TO-SERVICE ЭНДПОИНТЫ ===
-@router.get("/users/verify/{user_id}", response_model=UserVerifyResponse, tags=["Internal"])
-async def verify_user_exists(
-    user_id: int,
-    _: bool = Depends(verify_service_key),
-    user_service: UserService = Depends(get_user_service)
-):
-    exists = await user_service.verify_user_exists(user_id)
-    return UserVerifyResponse(user_id=user_id, exists=exists, is_active=exists)
 
-@router.get("/users/{user_id}/profile", response_model=UserProfileForFeedResponse, tags=["Internal"])
-async def get_user_profile_for_feed(
-    user_id: int,
-    _: bool = Depends(verify_service_key),
-    user_service: UserService = Depends(get_user_service)
+
+@router.get("/users/by-email/{email}", response_model=UserInternalResponse)
+async def get_user_by_email(
+    email: str,
+    _: None = Depends(verify_service_key),
+    user_service=Depends(get_user_service),
 ):
+    """Поиск пользователя по email (внутренний API, этап 2)."""
+    user = await user_service.get_user_by_email(email)
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    return user
+
+
+@router.get("/users/verify/{user_id}", response_model=UserVerifyResponse)
+async def verify_user(
+    user_id: int,
+    _: None = Depends(verify_service_key),
+    user_service=Depends(get_user_service),
+):
+    """Существование + актуальные role/is_admin (внутренний API)."""
+    user = await user_service.get_user_internal(user_id)
+    return UserVerifyResponse(
+        user_id=user_id,
+        exists=user is not None,
+        is_active=bool(user and user.is_active),
+        role=user.role if user else None,
+        is_admin=bool(user and user.is_admin),
+    )
+
+
+@router.get("/users/{user_id}/feed-profile", response_model=UserProfileForFeedResponse)
+async def get_user_for_feed(
+    user_id: int,
+    _: None = Depends(verify_service_key),
+    user_service=Depends(get_user_service),
+):
+    """Получение данных пользователя для Feed Service"""
     profile = await user_service.get_user_for_feed(user_id)
     if not profile:
-        raise HTTPException(status_code=404, detail="Пользователь не найден или неактивен")
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
     return profile
 
-@router.get("/users/{user_id}/location", response_model=LocationResponse, tags=["Internal"])
-async def get_user_location_for_feed(
+
+@router.get("/users/{user_id}/location", response_model=LocationResponse)
+async def get_user_location(
     user_id: int,
-    _: bool = Depends(verify_service_key),
-    user_service: UserService = Depends(get_user_service)
+    _: None = Depends(verify_service_key),
+    user_service=Depends(get_user_service),
 ):
+    """Получение геолокации пользователя (внутренний API)"""
     location = await user_service.get_user_location(user_id)
     if not location:
-        return LocationResponse(id=0, user_id=user_id, latitude=None, longitude=None, accuracy=None, updated_at=None)
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
     return location
-
-# Эндпоинт становления организатором (добавлен)
-@router.post("/users/{user_id}/become-organizer", response_model=UserResponse, tags=["Users"])
-async def become_organizer(
-    user_id: int,
-    current_user_id: int = Depends(get_current_user_id),
-    _: bool = Depends(check_user_ownership),
-    user_service: UserService = Depends(get_user_service)
-):
-    try:
-        updated_user = await user_service.become_organizer(user_id, current_user_id)
-        return updated_user
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))

@@ -2,6 +2,7 @@
 Тесты Feed Service (оптимизировано: 7 → 4 теста без потери покрытия)
 Требует: pip install pytest-asyncio
 """
+
 import os
 import sys
 import time
@@ -9,7 +10,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 # ============================================================================
@@ -50,24 +51,49 @@ class TestSchemas:
         )
 
         # Невалидные данные
-        with pytest.raises(ValidationError): FeedFilterParams(location_lat=95.0)
-        with pytest.raises(ValidationError): FeedFilterParams(page_size=100)
-        with pytest.raises(ValidationError): FeedFilterParams(page=0)
+        with pytest.raises(ValidationError):
+            FeedFilterParams(location_lat=95.0)
+        with pytest.raises(ValidationError):
+            FeedFilterParams(page_size=100)
+        with pytest.raises(ValidationError):
+            FeedFilterParams(page=0)
 
         # Валидные данные
         params = FeedFilterParams(location_lat=55.75, location_lon=37.61, radius_km=10)
         assert params.page == 1
 
         # Сборка ответа
-        org = OrganizationPreview(id=1, name="Test Org", logo_url=None, rating=4.5, verified=True, category_id=None)
-        evt = EventPreview(
-            id=100, title="Test Event", organization=org, description_preview="Desc",
-            start_time=datetime.now(), end_time=datetime.now() + timedelta(hours=2),
-            location_lat=55.75, location_lon=37.61
+        org = OrganizationPreview(
+            id=1,
+            name="Test Org",
+            logo_url=None,
+            rating=4.5,
+            verified=True,
+            category_id=None,
         )
-        section = FeedSection(section_type=FeedSectionType.FROM_SUBSCRIPTIONS, section_title="Subs", events=[evt])
-        feed = FeedResponse(user_id=1, generated_at=datetime.now(), filters_applied={}, sections=[section],
-                            total_events=1, has_more=False)
+        evt = EventPreview(
+            id=100,
+            title="Test Event",
+            organization=org,
+            description_preview="Desc",
+            start_time=datetime.now(),
+            end_time=datetime.now() + timedelta(hours=2),
+            location_lat=55.75,
+            location_lon=37.61,
+        )
+        section = FeedSection(
+            section_type=FeedSectionType.FROM_SUBSCRIPTIONS,
+            section_title="Subs",
+            events=[evt],
+        )
+        feed = FeedResponse(
+            user_id=1,
+            generated_at=datetime.now(),
+            filters_applied={},
+            sections=[section],
+            total_events=1,
+            has_more=False,
+        )
 
         assert feed.model_dump()["user_id"] == 1
         assert len(feed.sections) == 1
@@ -98,11 +124,28 @@ class TestCoreLogic:
         future = (datetime.now() + timedelta(days=1)).isoformat()
 
         events = [
-            {"id": 1, "location_lat": 55.7600, "location_lon": 37.6200, "start_time": future},  # ~0.5 км
-            {"id": 2, "location_lat": 59.9343, "location_lon": 30.3351, "start_time": future},  # СПб, ~630 км
-            {"id": 3, "location_lat": None, "location_lon": None, "start_time": future}  # Без координат
+            {
+                "id": 1,
+                "location_lat": 55.7600,
+                "location_lon": 37.6200,
+                "start_time": future,
+            },  # ~0.5 км
+            {
+                "id": 2,
+                "location_lat": 59.9343,
+                "location_lon": 30.3351,
+                "start_time": future,
+            },  # СПб, ~630 км
+            {
+                "id": 3,
+                "location_lat": None,
+                "location_lon": None,
+                "start_time": future,
+            },  # Без координат
         ]
-        params = FeedFilterParams(location_lat=55.7558, location_lon=37.6173, radius_km=50)
+        params = FeedFilterParams(
+            location_lat=55.7558, location_lon=37.6173, radius_km=50
+        )
         filtered = fe.filter_events(events, params, user_loc)
         ids = [e["id"] for e in filtered]
 
@@ -130,7 +173,7 @@ class TestAsyncRepository:
         engine = create_async_engine(
             "sqlite+aiosqlite:///:memory:",
             connect_args={"check_same_thread": False},
-            poolclass=StaticPool
+            poolclass=StaticPool,
         )
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -145,5 +188,6 @@ class TestAsyncRepository:
             assert stats["avg_processing_time_ms"] == 150.0
             assert stats["cache_hit_rate_percent"] == 50.0
             assert stats["error_rate_percent"] == 50.0
+
 
 # pytest tests/test_feed_s.py -v

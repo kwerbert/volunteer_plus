@@ -7,27 +7,19 @@ from app.services.event_service.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class ChatServiceClient:
     def __init__(self):
         self.base_url = settings.CHAT_SERVICE_URL
         self.api_key = settings.SERVICE_API_KEY
 
     async def ensure_event_chat(
-        self,
-        event_id: int,
-        user_id: int,
-        organization_id: int
+        self, event_id: int, user_id: int, organization_id: int
     ) -> Optional[int]:
         """Вызывает внутренний эндпоинт чат-сервиса для создания/добавления в чат"""
         url = f"{self.base_url}/internal/events/{event_id}/ensure-chat"
-        payload = {
-            "user_id": user_id,
-            "organization_id": organization_id
-        }
-        headers = {
-            "X-Service-Key": self.api_key,
-            "Content-Type": "application/json"
-        }
+        payload = {"user_id": user_id, "organization_id": organization_id}
+        headers = {"X-Service-Key": self.api_key, "Content-Type": "application/json"}
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.post(url, json=payload, headers=headers)
