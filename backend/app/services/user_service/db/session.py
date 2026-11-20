@@ -16,7 +16,6 @@ engine = create_async_engine(
     future=True,
 )
 
-# ✅ БЕЗ class_=async_session_maker — фабрика создаётся один раз и привязана к engine
 async_session_maker = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,

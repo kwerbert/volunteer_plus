@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 # ============================================================================
-# ✅ КРИТИЧЕСКИ ВАЖНО: Очищаем кэш ДО любого импорта сервисов
+# КРИТИЧЕСКИ ВАЖНО: Очищаем кэш ДО любого импорта сервисов
 # ============================================================================
 def _clear_analytics_cache():
     """Принудительная очистка кэша настроек"""
@@ -150,8 +150,6 @@ class TestService:
     async def test_003_user_analytics(self, mock_repository):
         """Проверка расчёта статистики пользователя"""
         from app.services.analytics_service.core.service import AnalyticsService
-
-        # ✅ ИСПРАВЛЕНО: правильный импорт модели
         from app.services.analytics_service.db.models import VolunteerStats
 
         # Настраиваем мок-данные

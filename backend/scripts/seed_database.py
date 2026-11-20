@@ -52,7 +52,7 @@ USER_DB_URL = "sqlite+aiosqlite:///./users.db"
 volunteer_engine = create_async_engine(VOLUNTEER_DB_URL, echo=False)
 user_engine = create_async_engine(USER_DB_URL, echo=False)
 
-# ✅ У каждого движка — СВОЯ фабрика сессий (вот чего не хватало)
+# У каждого движка — СВОЯ фабрика сессий (вот чего не хватало)
 user_session_maker = async_sessionmaker(user_engine, expire_on_commit=False)
 volunteer_session_maker = async_sessionmaker(volunteer_engine, expire_on_commit=False)
 
@@ -100,8 +100,9 @@ async def seed_all() -> None:
     async with volunteer_session_maker() as session:
         await seed_categories(session)
         await seed_organizations(session)
-        await seed_organization_organizers
+        await seed_organization_organizers(session)
         await seed_events(session)
+        await seed_event_roles(session)
         await seed_participations(session)
         await seed_subscriptions(session)
         await seed_chats(session)
@@ -180,6 +181,45 @@ async def seed_organizer_applications(session: AsyncSession) -> None:
                 reviewed_by=3,
                 reviewed_at=now - timedelta(days=1),
                 rejection_reason="Недостаточно информации о деятельности",
+            ),
+        ]
+    )
+    await session.flush()
+
+
+async def seed_event_roles(session: AsyncSession) -> None:
+    from app.services.event_service.db.models import EventRole
+
+    session.add_all(
+        [
+            # event 1 — кастомные роли (has_custom_roles=True)
+            EventRole(
+                id=1, event_id=1, name="Уборка", hours_value=4.0, max_participants=20
+            ),
+            EventRole(
+                id=2,
+                event_id=1,
+                name="Координация",
+                hours_value=6.0,
+                max_participants=5,
+            ),
+            EventRole(
+                id=3, event_id=1, name="Посадка", hours_value=3.0, max_participants=None
+            ),
+            # event 2/3 — дефолтная роль
+            EventRole(
+                id=4,
+                event_id=2,
+                name="Участник",
+                hours_value=4.0,
+                max_participants=None,
+            ),
+            EventRole(
+                id=5,
+                event_id=3,
+                name="Участник",
+                hours_value=4.0,
+                max_participants=None,
             ),
         ]
     )
@@ -269,6 +309,7 @@ async def seed_events(session: AsyncSession) -> None:
                 location="Центральный парк",
                 max_participants=50,
                 qr_secret="qr_secret_1",
+                has_custom_roles=True,
             ),
             Event(
                 id=2,
@@ -298,11 +339,12 @@ async def seed_events(session: AsyncSession) -> None:
 
 
 async def seed_participations(session: AsyncSession) -> None:
-    # ✅ status — члены enum ParticipationStatus, а не строки "checked_in":
+    # status — члены enum ParticipationStatus, а не строки "checked_in":
     # SQLEnum хранит ИМЕНА ("CHECKED_IN"), строка-значение упала бы с LookupError
     session.add_all(
         [
             Participation(
+                role_id=1,
                 event_id=1,
                 user_id=1,
                 status=ParticipationStatus.CHECKED_IN,
@@ -310,12 +352,14 @@ async def seed_participations(session: AsyncSession) -> None:
                 checked_in_at=now_utc(),
             ),
             Participation(
+                role_id=4,
                 event_id=2,
                 user_id=1,
                 status=ParticipationStatus.REGISTERED,
                 registered_at=now_utc() - timedelta(days=1),
             ),
             Participation(
+                role_id=5,
                 event_id=3,
                 user_id=1,
                 status=ParticipationStatus.REGISTERED,

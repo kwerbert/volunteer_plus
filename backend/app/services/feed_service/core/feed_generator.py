@@ -1,6 +1,6 @@
 """
 Генератор персонализированной ленты.
-✅ Исправлено: aiohttp.ClientSession внедряется через зависимости, нет утечек.
+Исправлено: aiohttp.ClientSession внедряется через зависимости, нет утечек.
 """
 
 import asyncio
@@ -35,7 +35,7 @@ class FeedGenerator:
     ):
         self.repository = repository
         self.settings = settings
-        self.http_session = http_session  # ✅ Используем общую сессию
+        self.http_session = http_session  # Используем общую сессию
         self.filter_engine = FilterEngine(settings)
         self.recommendation_engine = RecommendationEngine(settings)
 
@@ -126,7 +126,7 @@ class FeedGenerator:
         """Получение подписок пользователя из Subscription Service"""
         try:
             params = {"user_id": user_id, "active_only": "true"}
-            # ✅ Используем внедрённую сессию
+            # Используем внедрённую сессию
             async with self.http_session.get(
                 f"{self.settings.SUBSCRIPTION_SERVICE_URL}/api/v1/subscriptions",
                 params=params,
@@ -146,7 +146,7 @@ class FeedGenerator:
     ) -> List[Dict[str, Any]]:
         """
         Получение мероприятий из Event Service + обогащение данными организаций.
-        ✅ КРИТИЧЕСКИ: нормализация полей даты (start_date → start_time).
+        КРИТИЧЕСКИ: нормализация полей даты (start_date → start_time).
         """
         try:
             params = {
@@ -163,7 +163,7 @@ class FeedGenerator:
                     map(str, subscribed_org_ids)
                 )  # было organization_ids
 
-            # ✅ Используем внедрённую сессию
+            # Используем внедрённую сессию
             async with self.http_session.get(
                 f"{self.settings.EVENT_SERVICE_URL}/api/v1/events",
                 params={k: v for k, v in params.items() if v is not None},
@@ -179,7 +179,7 @@ class FeedGenerator:
                     else:
                         events = []
 
-                    # ✅ Обогащение данными организаций + нормализация полей
+                    # Обогащение данными организаций + нормализация полей
                     enriched = await self._enrich_events_with_organization_data(events)
                     logger.info(f"Fetched {len(enriched)} enriched events")
                     return enriched
@@ -196,7 +196,7 @@ class FeedGenerator:
     ) -> List[Dict[str, Any]]:
         """
         Обогащение мероприятий данными организаций из Organization Service.
-        ✅ Нормализация: start_date → start_time, end_date → end_time.
+        Нормализация: start_date → start_time, end_date → end_time.
         """
         if not events:
             return []
@@ -225,7 +225,6 @@ class FeedGenerator:
             # Копируем event и добавляем нормализованные поля
             enriched_event = event.copy()
 
-            # ✅ НОРМАЛИЗАЦИЯ ДАТ: поддержка обоих форматов
             if "start_date" in enriched_event and "start_time" not in enriched_event:
                 enriched_event["start_time"] = enriched_event["start_date"]
             if "end_date" in enriched_event and "end_time" not in enriched_event:
@@ -357,9 +356,9 @@ class FeedGenerator:
     def _build_event_preview(event: Dict[str, Any]) -> EventPreview:
         """
         Построение EventPreview из словаря.
-        ✅ Безопасное получение полей с поддержкой обоих форматов дат.
+        Безопасное получение полей с поддержкой обоих форматов дат.
         """
-        # ✅ Получение времени начала: пробуем start_time, затем start_date
+        # Получение времени начала: пробуем start_time, затем start_date
         start_time_val = event.get("start_time") or event.get("start_date")
         end_time_val = event.get("end_time") or event.get("end_date") or start_time_val
 

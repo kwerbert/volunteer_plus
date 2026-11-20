@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.user_service.api.organizer_router import (
-    router as organizer_router,  # ✅ ДОБАВИТЬ
+    router as organizer_router,
 )
 from app.services.user_service.api.router import router
 from app.services.user_service.config import get_settings
@@ -48,7 +48,7 @@ app.add_middleware(
 
 # Include Router
 app.include_router(router)
-app.include_router(organizer_router)  # ✅ ДОБАВИТЬ ЭТУ СТРОКУ
+app.include_router(organizer_router)
 
 
 @app.get("/")

@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import (  # ✅ ДОБАВЛЕНО JSON
+from sqlalchemy import (
     JSON,
     Boolean,
     Column,
@@ -20,9 +20,8 @@ Base = declarative_base()
 class ChatTypeEnum(str, enum.Enum):
     """Типы чатов"""
 
-    # ❌ УДАЛЕНО: PERSONAL = "personal"
-    ORGANIZER = "organizer"  # ✅ Личный чат с организатором
-    EVENT = "event"  # ✅ Групповой чат мероприятия
+    ORGANIZER = "organizer"  # Личный чат с организатором
+    EVENT = "event"  # Групповой чат мероприятия
 
 
 class MessageTypeEnum(str, enum.Enum):
@@ -53,7 +52,7 @@ class Chat(Base):
         nullable=True,
     )
     scheduled_delete_at = Column(DateTime, nullable=True)
-    deletion_config = Column(JSON, nullable=True)  # ✅ ТЕПЕРЬ РАБОТАЕТ
+    deletion_config = Column(JSON, nullable=True)
 
     messages = relationship(
         "Message", back_populates="chat", cascade="all, delete-orphan"

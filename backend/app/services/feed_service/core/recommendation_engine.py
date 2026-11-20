@@ -133,7 +133,7 @@ class RecommendationEngine:
                             data.get("events", []) if isinstance(data, dict) else data
                         )
 
-                        # ✅ Нормализуем org_id → organization_id
+                        # Нормализуем org_id → organization_id
                         for ev in events:
                             if "organization_id" not in ev and "org_id" in ev:
                                 ev["organization_id"] = ev["org_id"]

@@ -77,7 +77,7 @@ async def get_current_user_id(
     return user_id
 
 
-# === Current User (объект из БД) === ✅ ДОБАВИТЬ
+# === Current User (объект из БД) ===
 async def get_current_user(
     user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
@@ -99,7 +99,7 @@ async def get_current_user(
     return user
 
 
-# === Проверка привилегий === ✅ ДОБАВИТЬ
+# === Проверка привилегий ===
 async def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Модератор: ортогональная привилегия is_admin, не роль."""
     if not current_user.is_admin:
@@ -145,7 +145,7 @@ async def verify_service_key(
 # === Проверка владения ресурсом ===
 async def require_same_user(
     user_id: int,
-    current_user: User = Depends(get_current_user),  # ✅ ОБНОВИТЬ
+    current_user: User = Depends(get_current_user),
 ) -> User:
     """Свой ресурс либо админ."""
     if current_user.id != user_id and not current_user.is_admin:

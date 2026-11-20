@@ -1,6 +1,6 @@
 """
 Модуль управления HTTP-сессиями для микросервиса.
-✅ Единый пул соединений aiohttp с настройками таймаутов и лимитов.
+Единый пул соединений aiohttp с настройками таймаутов и лимитов.
 """
 
 import logging
@@ -97,7 +97,7 @@ http_client_manager = HTTPClientManager()
 async def get_http_session() -> AsyncGenerator[aiohttp.ClientSession, None]:
     """
     Dependency для получения HTTP-сессии.
-    ✅ Session reused across requests, no leaks.
+    Session reused across requests, no leaks.
     """
     yield http_client_manager.session
 

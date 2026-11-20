@@ -29,7 +29,7 @@ __version__ = "1.0.0"
 async def lifespan(app: FastAPI):
     """
     Application lifespan: инициализация и очистка ресурсов.
-    ✅ Создаёт единый aiohttp.ClientSession для всех запросов.
+    Создаёт единый aiohttp.ClientSession для всех запросов.
     """
     # === Startup ===
     logger.info(f"Starting {settings.SERVICE_NAME} on port {settings.SERVICE_PORT}")

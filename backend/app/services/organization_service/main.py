@@ -1,12 +1,13 @@
-# app/services/organization_service/main.py
-
 import logging
-from contextlib import asynccontextmanager  # ✅ добавить
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.services.organization_service.api.internal_router import (
+    router as internal_router,
+)
 from app.services.organization_service.api.router import router
 from app.services.organization_service.config import settings
 from app.services.organization_service.db.session import engine, init_db
@@ -47,6 +48,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(internal_router)
 
 # УДАЛИТЬ старые декораторы @app.on_event("startup") и @app.on_event("shutdown")
 # Функции startup_event и shutdown_event больше не нужны

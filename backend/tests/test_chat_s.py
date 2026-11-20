@@ -53,7 +53,7 @@ def mock_repo():
     repo.deactivate_chat = AsyncMock()
     repo.find_personal_chat = (
         AsyncMock()
-    )  # ✅ имя метода оставлено, но внутри должен использоваться ORGANIZER
+    )  # имя метода оставлено, но внутри должен использоваться ORGANIZER
     repo.user_has_access_to_chat = AsyncMock()
     # Member methods
     repo.add_member = AsyncMock()
@@ -140,16 +140,14 @@ class TestSchemas:
         )
 
         req = ChatCreateRequest(
-            chat_type=ChatTypeEnum.ORGANIZER,  # ✅ ЗАМЕНЕНО
+            chat_type=ChatTypeEnum.ORGANIZER,
             participant_ids=[2],
         )
-        assert req.chat_type == ChatTypeEnum.ORGANIZER  # ✅ ЗАМЕНЕНО
+        assert req.chat_type == ChatTypeEnum.ORGANIZER
         assert req.participant_ids == [2]
 
         with pytest.raises(ValidationError):
-            ChatCreateRequest(
-                chat_type=ChatTypeEnum.ORGANIZER, participant_ids=[]
-            )  # ✅ ЗАМЕНЕНО
+            ChatCreateRequest(chat_type=ChatTypeEnum.ORGANIZER, participant_ids=[])
         print("✓ Схема создания чата валидируется корректно")
 
     def test_004_message_create_request_schema(self):
@@ -187,11 +185,11 @@ class TestSchemas:
         chat = ChatResponse(
             id=1,
             chat_type=ChatTypeEnum.ORGANIZER,
-            created_at=now_utc(),  # ✅ ЗАМЕНЕНО
+            created_at=now_utc(),
             unread_count=0,
             members=[member],
         )
-        assert chat.chat_type == ChatTypeEnum.ORGANIZER  # ✅ ЗАМЕНЕНО
+        assert chat.chat_type == ChatTypeEnum.ORGANIZER
 
         msg = MessageResponse(
             id=1,
@@ -254,7 +252,7 @@ class TestRepository:
         mock_chat = Chat(
             id=1,
             chat_type=ChatTypeEnum.ORGANIZER,
-            is_active=True,  # ✅ ЗАМЕНЕНО
+            is_active=True,
             created_at=now_utc(),
         )
         mock_session.get.return_value = mock_chat
@@ -327,7 +325,6 @@ class TestService:
         from app.services.chat_service.core.service import ChatService
         from app.services.chat_service.db.models import Message, MessageTypeEnum
 
-        # ✅ ИСПРАВЛЕНО: is_read=True (симуляция успешной отметки прочтения)
         mock_message = Message(
             id=1,
             chat_id=1,

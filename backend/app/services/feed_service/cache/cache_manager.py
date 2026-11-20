@@ -43,12 +43,11 @@ class CacheManager:
     def set(self, key: str, value: Any, ttl: int = 300) -> bool:
         """
         Сохранение значения в кэш
-        ✅ ИСПРАВЛЕНО: добавлен default=str для сериализации datetime
+        ИСПРАВЛЕНО: добавлен default=str для сериализации datetime
         """
         if not self._cache_enabled:
             return False
         try:
-            # ✅ ИСПРАВЛЕНО: json.dumps теперь умеет обрабатывать datetime через str()
             serialized_value = json.loads(json.dumps(value, default=str))
             self._cache[key] = {
                 "value": serialized_value,

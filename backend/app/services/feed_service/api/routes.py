@@ -1,6 +1,6 @@
 """
 API Routes для Feed Service.
-✅ Внедрение зависимостей: repository, http_session, feed_generator.
+Внедрение зависимостей: repository, http_session, feed_generator.
 """
 
 import logging
@@ -24,7 +24,7 @@ def get_feed_generator(
 ) -> FeedGenerator:
     """
     Factory-зависимость для создания FeedGenerator с инъекцией session.
-    ✅ Session передаётся в сервис, а не создаётся заново на каждый запрос.
+    Session передаётся в сервис, а не создаётся заново на каждый запрос.
     """
     return FeedGenerator(
         repository=repository,

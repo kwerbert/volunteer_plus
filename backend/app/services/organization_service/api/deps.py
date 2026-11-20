@@ -9,7 +9,7 @@ import logging
 from typing import Optional
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.services.organization_service.config import settings
@@ -97,3 +97,20 @@ async def require_organizer(
             detail="Требуются права организатора",
         )
     return current_user
+
+
+async def verify_service_key(
+    x_service_key: str = Header(None),
+) -> bool:
+    """Service-to-service авторизация. Контракт как в user/chat: 401/403/True."""
+    if x_service_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Service key отсутствует",
+        )
+    if x_service_key != settings.SERVICE_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Невалидный service key",
+        )
+    return True
