@@ -1,14 +1,3 @@
-"""Жизненный цикл чатов мероприятия и синхронизация организаторов (этап 6).
-
-Единый источник правды об организаторах — organization_organizers
-(organization_service). Состав EVENT-чатов синхронизируется:
-* при каждой регистрации волонтёра (ensure_event_chat, 6.1);
-* при добавлении/удалении организатора организации (6.2/6.3).
-
-Личные ORGANIZER-чаты не трогаем: приватная переписка волонтёра
-с владельцем (примечание к этапу 6, консистентно с этапом 5.3).
-"""
-
 import logging
 
 from sqlalchemy import select
@@ -46,7 +35,7 @@ async def ensure_event_chat(
 
     Недоступность organization_service не роняет регистрацию: клиент вернёт
     [], состав досинхронизируется при следующей регистрации или при
-    добавлении организатора (6.2).
+    добавлении организатора.
     """
     repo = ChatRepository(db)
     stmt = select(Chat).where(Chat.event_id == event_id, Chat.is_active)
@@ -63,8 +52,7 @@ async def ensure_event_chat(
 
     organizer_ids = await organization_client.get_organizer_ids(organization_id)
 
-    # 6.1/6.4: волонтёр — "member"; организатор (в т.ч. зарегистрировавшийся
-    # на своё мероприятие) — "organizer".
+    # волонтёр — "member"; организатор (в т.ч. зарегистрировавшийся на своё мероприятие) — "organizer".
     if user_id in organizer_ids:
         await _ensure_organizer_member(repo, chat.id, user_id)
     else:

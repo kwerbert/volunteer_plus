@@ -32,7 +32,7 @@ class RecommendationEngine:
                 filter_params=filter_params,
             )
             for event in popular_events[:5]:
-                # Нормализация org_id и дат — внутри общего билдера (этап 7.3)
+                # Нормализация org_id и дат — внутри общего билдера
                 recommendations.append(build_event_preview(event))
             logger.info(
                 f"Generated {len(recommendations)} recommendations for user {user_id}"

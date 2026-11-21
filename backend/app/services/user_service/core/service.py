@@ -95,7 +95,7 @@ class UserService:
         return await self.user_repo.get_by_id(user_id)
 
     async def get_user_by_email(self, email: str):
-        """Поиск по email для organization_service (этап 2)."""
+        """Поиск по email для organization_service"""
         return await self.user_repo.get_by_email(email)
 
     async def get_user_for_feed(self, user_id: int) -> Optional[Dict[str, Any]]:

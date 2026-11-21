@@ -19,13 +19,13 @@ class Settings(BaseSettings):
 
     NOTIFICATION_SERVICE_URL: str = Field(
         default="http://localhost:8006",
-        description="URL notification-сервиса (этап 5.4)",
+        description="URL notification-сервиса",
     )
     NOTIFICATION_TIMEOUT_SECONDS: float = 3.0
 
     CHAT_SERVICE_URL: str = Field(
         default="http://localhost:8007",
-        description="URL chat-сервиса (синхронизация чатов, этап 6)",
+        description="URL chat-сервиса (синхронизация чатов)",
     )
     CHAT_TIMEOUT_SECONDS: float = 5.0
 

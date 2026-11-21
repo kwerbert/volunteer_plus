@@ -41,7 +41,7 @@ class FeedGenerator:
     ) -> FeedResponse:
         logger.info(f"Starting feed generation for user_id={user_id}")
 
-        # Шаг 1: Данные пользователя (role нужна для секции MY_EVENTS, этап 7)
+        # Шаг 1: Данные пользователя (role нужна для секции MY_EVENTS)
         user_data = await self._get_user_data(user_id)
         is_organizer = str(user_data.get("role") or "").lower() == "organizer"
         user_location = {
@@ -54,7 +54,6 @@ class FeedGenerator:
         subscribed_org_ids = [sub["org_id"] for sub in subscriptions]
         logger.info(f"User {user_id} has {len(subscribed_org_ids)} subscriptions")
 
-        # Шаг 2.5 (этап 7.1): организации, где пользователь — организатор.
         # Источник правды — organization_organizers (organization_service).
         my_org_ids = await self._get_my_org_ids(user_id) if is_organizer else []
         if my_org_ids:
@@ -109,7 +108,7 @@ class FeedGenerator:
     async def _get_user_data(self, user_id: int) -> Dict[str, Any]:
         """Данные пользователя из User Service (service-to-service).
         /users/{id}/profile отдаёт вложенную структуру {user, settings, location} —
-        нормализуем в плоский вид (этап 7: нужна role; заодно чиним геолокацию)."""
+        нормализуем в плоский вид"""
         try:
             async with self.http_session.get(
                 f"{self.settings.USER_SERVICE_URL}/api/v1/users/{user_id}/profile",
@@ -180,7 +179,7 @@ class FeedGenerator:
         return []
 
     async def _get_my_org_ids(self, user_id: int) -> List[int]:
-        """Этап 7.1: организации, где пользователь — активный организатор.
+        """Организации, где пользователь — активный организатор.
         Единый источник правды — organization_organizers (organization_service).
         Сбой сервиса → [] → секции MY_EVENTS не будет, лента не падает."""
         try:
@@ -203,8 +202,6 @@ class FeedGenerator:
         return []
 
     async def _fetch_my_events(self, my_org_ids: List[int]) -> List[Dict[str, Any]]:
-        """Этап 7.1: мероприятия своих организаций во ВСЕХ статусах
-        (active/cancelled/completed) — управленческая секция, не рекомендации."""
         if not my_org_ids:
             return []
         try:
@@ -378,11 +375,6 @@ class FeedGenerator:
         sections: List[FeedSection] = []
         my_events = my_events or []
         my_org_ids = my_org_ids or []
-
-        # Секция 0 (этап 7.1): «Мои мероприятия» — только для организатора.
-        # Не скрывается toggle «только подписки»: это свои мероприятия
-        # (управление), а не рекомендации. Статус — на каждой карточке,
-        # фронт группирует active/cancelled/completed сам.
         if my_events:
             ordered = self._sort_my_events(my_events)
             sections.append(
@@ -421,7 +413,7 @@ class FeedGenerator:
             )
 
         # Секция 2: Рекомендации (если не только подписки).
-        # Этап 7.4: организатор тоже видит рекомендации — мероприятия ДРУГИХ
+        # Организатор тоже видит рекомендации — мероприятия ДРУГИХ
         # организаций «для вдохновения». Свои орг исключаем: они в MY_EVENTS.
         if not filter_params.show_only_subscriptions:
             exclude_org_ids = sorted(set(subscribed_org_ids) | set(my_org_ids))
@@ -445,10 +437,6 @@ class FeedGenerator:
 
     @staticmethod
     def _sort_my_events(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Этап 7.1 + вопрос пагинации: активные (ближайшие сверху) →
-        завершённые (свежие сверху) → отменённые (свежие сверху).
-        Даты — ISO-строки из JSON, строковая сортировка корректна."""
-
         def start_key(e: Dict[str, Any]) -> str:
             return e.get("start_time") or e.get("start_date") or ""
 

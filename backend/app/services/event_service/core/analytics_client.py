@@ -37,8 +37,7 @@ class AnalyticsServiceClient:
         url = f"{self.base_url}/api/v1/analytics/events/{event_id}/complete"
         async with semaphore:
             try:
-                # hours/role не передаём: analytics сам возьмёт hours_value
-                # и name роли из регистрации (этап 8.1/8.2).
+                # hours/role не передаём: analytics сам возьмёт hours_value и name роли из регистрации.
                 response = await client.post(
                     url,
                     json={"user_id": user_id},

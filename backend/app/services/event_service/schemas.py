@@ -11,7 +11,7 @@ class EventStatusEnum(str, Enum):
     COMPLETED = "completed"
 
 
-# === Роли мероприятия (этап 3) ===
+# === Роли мероприятия ===
 class EventRoleCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = None
@@ -73,9 +73,6 @@ class EventResponse(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    """Этап 4.1: основное имя поля — event_role_id.
-    role_id оставлен как deprecated-алиас этапа 3 (фронт ещё не мигрирован)."""
-
     user_id: int
     event_role_id: Optional[int] = None
     role_id: Optional[int] = None
@@ -115,7 +112,7 @@ class ParticipationResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# === Этап 4: жизненный цикл ===
+# === Жизненный цикл ===
 class EventCancelResponse(BaseModel):
     """4.2: мягкая отмена."""
 

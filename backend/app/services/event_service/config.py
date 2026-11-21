@@ -29,31 +29,31 @@ class Settings(BaseSettings):
     )
     ORGANIZATION_SERVICE_URL: str = Field(
         default="http://localhost:8004",
-        description="URL organization-сервиса (проверка прав, этап 3)",
+        description="URL organization-сервиса (проверка прав)",
     )
     USER_SERVICE_URL: str = Field(
         default="http://localhost:8008",
-        description="URL user-сервиса (проверка is_admin при отмене, этап 4.2)",
+        description="URL user-сервиса (проверка is_admin при отмене)",
     )
     NOTIFICATION_SERVICE_URL: str = Field(
         default="http://localhost:8006",
-        description="URL notification-сервиса (этап 4.5)",
+        description="URL notification-сервиса",
     )
     ANALYTICS_SERVICE_URL: str = Field(
         default="http://localhost:8005",
-        description="URL analytics-сервиса (учёт часов при завершении, этап 8)",
+        description="URL analytics-сервиса (учёт часов при завершении)",
     )
     # Триггер учёта часов при active→completed. Выключается в тестах:
     # EVENT_ANALYTICS_TRIGGER_ENABLED=false
     ANALYTICS_TRIGGER_ENABLED: bool = True
 
-    # === Этап 4: жизненный цикл ===
+    # === Жизненный цикл ===
     CANCELLED_RETENTION_DAYS: int = 30  # 4.3: физическое удаление через 30 дней
     MAINTENANCE_ENABLED: bool = True  # фоновая задача завершения/очистки
     MAINTENANCE_INTERVAL_SECONDS: int = 3600
     NOTIFICATION_TIMEOUT_SECONDS: float = 3.0
 
-    # Дефолтная роль волонтёра, если организатор не задал роли (этап 3.3/3.6)
+    # Дефолтная роль волонтёра, если организатор не задал роли
     DEFAULT_EVENT_HOURS: float = 4.0
     DEFAULT_ROLE_NAME: str = "Участник"
 

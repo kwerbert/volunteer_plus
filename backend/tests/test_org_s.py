@@ -82,7 +82,7 @@ async def test_category(test_db):
 
 @pytest.fixture(scope="function", autouse=True)
 def event_client_mock():
-    """Удаление организации ходит в event_service (этап 4.6) — мокаем."""
+    """Удаление организации ходит в event_service — мокаем."""
     with patch(
         "app.services.organization_service.service.cancel_organization_events",
         new=AsyncMock(
@@ -447,7 +447,6 @@ async def test_duplicate_organizer_does_not_notify(client, notify_mock):
 
 @pytest.fixture(scope="function", autouse=True)
 def chat_client_mock():
-    """Этап 6: синхронизация чатов при добавлении/удалении организатора."""
     with (
         patch(
             "app.services.organization_service.service.add_organizer_to_chats",

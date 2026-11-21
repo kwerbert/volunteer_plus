@@ -83,7 +83,7 @@ class ChatMember(Base):
 
     __table_args__ = (
         # Одна запись на (chat_id, user_id): выход помечается left_at,
-        # возврат реактивирует ту же строку (ChatRepository.add_member, этап 6).
+        # возврат реактивирует ту же строку (ChatRepository.add_member).
     )
 
 

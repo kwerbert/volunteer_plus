@@ -1,4 +1,4 @@
-"""HTTP-клиент к organization_service (этап 5.3).
+"""HTTP-клиент к organization_service
 
 Единый источник правды об организаторах — organization_organizers.
 Уведомление — побочный эффект: недоступность сервиса не роняет отправку

@@ -205,7 +205,6 @@ async def get_user_by_email(
     _: None = Depends(verify_service_key),
     user_service=Depends(get_user_service),
 ):
-    """Поиск пользователя по email (внутренний API, этап 2)."""
     user = await user_service.get_user_by_email(email)
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")

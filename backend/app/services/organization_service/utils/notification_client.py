@@ -1,4 +1,4 @@
-"""HTTP-клиент к notification_service (этап 5.4).
+"""HTTP-клиент к notification_service
 
 Зеркало event_service.core.notification_client на aiohttp: уведомление —
 побочный эффект, добавление организатора не должно падать из-за пуша.

@@ -544,7 +544,7 @@ class TestStage5ChatRecipients:
 
 
 class TestStage6OrganizerSync:
-    """Этап 6: организаторы — участники EVENT-чатов, синхронизация состава."""
+    """Организаторы — участники EVENT-чатов, синхронизация состава."""
 
     @staticmethod
     def _db_with_chat(chat):

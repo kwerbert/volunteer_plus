@@ -1,4 +1,4 @@
-"""Зависимости авторизации Organization Service (этап 2).
+"""Зависимости авторизации Organization Service
 
 JWT валидируется локально (общий секрет с user_service), а актуальные
 role/is_admin запрашиваются у user_service: роль могла измениться после

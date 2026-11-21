@@ -1,4 +1,4 @@
-"""HTTP-клиент к notification_service (этап 4.5).
+"""HTTP-клиент к notification_service
 
 Отправка не должна ронять бизнес-операцию: уведомление уже сохранено в БД
 notification_service, даже если у пользователя нет push-токенов (NO_TOKENS).

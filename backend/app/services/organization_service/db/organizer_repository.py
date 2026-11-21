@@ -1,6 +1,4 @@
 """Репозиторий связей «организация ↔ организаторы».
-
-Flush без commit — транзакцией владеет сервис (паттерн этапа 1).
 """
 
 from datetime import datetime, timezone
@@ -111,8 +109,7 @@ class OrganizationOrganizerRepository:
         return result.rowcount
 
     async def get_active_organization_ids(self, user_id: int) -> List[int]:
-        """Организации, где пользователь — активный организатор (этап 7.1,
-        internal API для feed_service). Удалённые организации исключаем:
+        """Организации, где пользователь — активный организатор. Удалённые организации исключаем:
         их мероприятия и так отменены, в «Моих мероприятиях» не показываем."""
         stmt = (
             select(OrganizationOrganizer.organization_id)

@@ -424,12 +424,6 @@ async def _verify_event(event_id: int) -> bool:
 def _collect_message_recipients(
     members: list, organizer_ids: List[int], sender_id: int
 ) -> List[int]:
-    """Получатели push'а о новом сообщении.
-    С этапа 6 организаторы состоят в EVENT-чатах, но fan-out через
-    organization_service сохранён: он покрывает чаты, созданные до
-    синхронизации, и случай недоступности organization_service при ensure-chat.
-    Muted не получают push, отправитель не уведомляется.
-    """
     muted = {m.user_id for m in members if m.is_muted}
     recipients = {m.user_id for m in members if not m.is_muted}
     recipients.update(uid for uid in organizer_ids if uid not in muted)

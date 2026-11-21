@@ -26,7 +26,7 @@ _OLD_ENUM_CHECK = re.compile(r"notification_type\s+IN\s*\(", re.IGNORECASE)
 
 
 async def _migrate_notification_type_enum(conn) -> None:
-    """Снимает устаревший CHECK с notifications.notification_type (этап 5).
+    """Снимает устаревший CHECK с notifications.notification_type
 
     Без Alembic: SQLite не умеет ALTER CONSTRAINT, поэтому пересобираем
     таблицу с сохранением данных. Идемпотентно — после пересборки CHECK

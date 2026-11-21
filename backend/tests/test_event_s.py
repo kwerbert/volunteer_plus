@@ -499,7 +499,7 @@ async def test_internal_cancel_keeps_completed(client, test_db):
     assert obj.status == EventStatus.COMPLETED.value
 
 
-# === Этап 5: уведомления организаторам ===
+# === Уведомления организаторам ===
 
 
 @pytest.mark.asyncio

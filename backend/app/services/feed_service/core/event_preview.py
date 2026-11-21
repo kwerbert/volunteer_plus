@@ -84,7 +84,6 @@ def build_event_preview(event: Dict[str, Any]) -> EventPreview:
         required_role_id=event.get("required_role_id"),
         max_participants=event.get("max_participants"),
         registered_count=event.get("registered_count", 0),
-        # === Этап 7.3 ===
         image_url=event.get("image_url"),
         status=event.get("status") or "active",
         has_custom_roles=bool(event.get("has_custom_roles", False)),

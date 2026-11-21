@@ -57,7 +57,7 @@ async def create_event(
     current_user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Создание мероприятия. Только организатор организации (этап 3.1)."""
+    """Создание мероприятия. Только организатор организации"""
     service = EventService(db)
     try:
         return await service.create_event(event_data, current_user_id)
@@ -91,7 +91,7 @@ async def get_popular_events(
     return {"events": [e.model_dump() for e in events]}
 
 
-# === Этап 4: крон-эндпоинты. Объявлены ДО /{event_id}, иначе путь перехватится ===
+# === Крон-эндпоинты. Объявлены ДО /{event_id}, иначе путь перехватится ===
 @router.post("/cleanup", response_model=EventCleanupResponse)
 async def cleanup_cancelled_events(
     retention_days: Optional[int] = Query(None, ge=0),
@@ -115,7 +115,7 @@ async def complete_expired_events(
 
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event(event_id: int, db: AsyncSession = Depends(get_db_session)):
-    """Детальная карточка: роли с часами, лимитами и registered_count (этап 3.7)."""
+    """Детальная карточка: роли с часами, лимитами и registered_count"""
     service = EventService(db)
     event = await service.get_event_detail(event_id)
     if not event:

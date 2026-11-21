@@ -64,7 +64,7 @@ class EventService:
         self.notification_client = NotificationServiceClient()
         self.analytics_client = AnalyticsServiceClient()
 
-    # === Права (этап 3.1 + 4.2) ===
+    # === Права ===
     async def _require_org_organizer(self, org_id: int, user_id: int) -> None:
         if not await self.org_client.is_organizer(org_id, user_id):
             raise HTTPException(
@@ -208,7 +208,7 @@ class EventService:
         result = await self.db.execute(stmt)
         return [EventResponse.model_validate(e) for e in result.scalars().all()]
 
-    # === Создание (этап 3) ===
+    # === Создание ===
     async def create_event(
         self, event_data: EventCreate, current_user_id: int
     ) -> EventResponse:
@@ -312,7 +312,7 @@ class EventService:
             len(recipients),
         )
         self._notify_event_cancelled(event, recipients)
-        # Этап 5: организаторы тоже узнают об отмене (инициатору не шлём).
+        # Оганизаторы тоже узнают об отмене (инициатору не шлём).
         await self._notify_organizers(
             org_id=event.org_id,
             title="Мероприятие отменено",
@@ -345,7 +345,7 @@ class EventService:
         event.cancelled_at = datetime.now(timezone.utc)
         return recipients, result.rowcount or 0
 
-    # === Уведомления организаторам (этап 5) ===
+    # === Уведомления организаторам ===
 
     async def _organizer_ids(
         self, org_id: int, exclude_user_id: Optional[int] = None
@@ -460,7 +460,7 @@ class EventService:
     async def _credit_hours_for_completed(self, events: List[Event]) -> None:
         """Триггер аналитики: при переходе active→completed начисляем часы
         волонтёрам со статусом CHECKED_IN (отметка о посещении). Аналитика
-        сама возьмёт hours_value и name роли из event_roles (этап 8.1/8.2).
+        сама возьмёт hours_value и name роли из event_roles.
         Побочный эффект: fire-and-forget, сбой analytics не роняет завершение.
         Гард от задвоения — сам переход статуса (completed не завершается повторно)."""
         if not settings.ANALYTICS_TRIGGER_ENABLED:
@@ -482,7 +482,7 @@ class EventService:
     async def get_participation_role_info(
         self, event_id: int, user_id: int
     ) -> Optional[ParticipationRoleInfoResponse]:
-        """Этап 8.1: регистрация + роль для analytics_service (internal API).
+        """Регистрация + роль для analytics_service (internal API).
         None — мероприятие/регистрация не найдены (роутер отдаст 404).
         Роль удалена → role_name/hours_value = None → дефолт на стороне аналитики."""
         event = await self.db.get(Event, event_id)
@@ -671,7 +671,7 @@ class EventService:
             event_id,
             role.id,
         )
-        # Этап 5.2: NEW_REGISTRATION всем организаторам организации.
+        # NEW_REGISTRATION всем организаторам организации.
         # Себе не шлём (организатор может зарегистрироваться сам).
         await self._notify_organizers(
             org_id=event.org_id,
@@ -720,7 +720,7 @@ class EventService:
         await self.db.commit()
         await self.db.refresh(participation)
         logger.info("User %s cancelled registration for event %s", user_id, event_id)
-        # Этап 5.2: REGISTRATION_CANCELLED всем организаторам организации.
+        # REGISTRATION_CANCELLED всем организаторам организации.
         role_name = None
         if participation.role_id:
             roles = await self._get_roles(event_id)

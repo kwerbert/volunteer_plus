@@ -1,4 +1,4 @@
-"""HTTP-клиент к event_service (X-Service-Key), этап 4.6."""
+"""HTTP-клиент к event_service (X-Service-Key)"""
 
 import logging
 from typing import Any, Dict

@@ -113,7 +113,7 @@ class OrganizationService:
     # === Организаторы организации ===
 
     async def list_user_organization_ids(self, user_id: int) -> List[int]:
-        """Этап 7.1: организации пользователя-организатора для feed_service.
+        """Организации пользователя-организатора для feed_service.
         Пустой список — не организатор / без организации (не 404)."""
         return await self.organizers.get_active_organization_ids(user_id)
 
@@ -124,7 +124,7 @@ class OrganizationService:
     async def _notify_organizers_added(
         self, org_id: int, new_user_id: int, user_info: dict
     ) -> None:
-        """5.4: NEW_ORGANIZER_ADDED всем действующим организаторам, кроме нового."""
+        """NEW_ORGANIZER_ADDED всем действующим организаторам, кроме нового."""
         try:
             members = await self.organizers.get_active_by_organization(org_id)
             recipients = sorted(
@@ -195,8 +195,6 @@ class OrganizationService:
             )
         await self.db.refresh(membership)
         await self._notify_organizers_added(org_id, target_id, user_info)
-        # Этап 6.2: организатор добавляется во все EVENT-чаты организации.
-        # Побочный эффект: сбой chat_service не откатывает добавление.
         try:
             await add_organizer_to_chats(org_id, target_id)
         except Exception:
@@ -234,7 +232,6 @@ class OrganizationService:
             )
         await self.organizers.deactivate(membership)
         await self.db.commit()
-        # Этап 6.3: убираем организатора из EVENT-чатов организации.
         try:
             await remove_organizer_from_chats(org_id, user_id)
         except Exception:
@@ -261,7 +258,7 @@ class OrganizationService:
                 detail="Удалить организацию может только владелец или администратор",
             )
 
-        # Этап 4.6: сначала отменяем активные/будущие мероприятия.
+        # Сначала отменяем активные/будущие мероприятия.
         # Завершённые остаются как есть — название организации «заморожено»
         # (GET /organizations/{id} отдаёт и неактивные организации).
         # Если event_service недоступен — 503 и ничего не меняем.

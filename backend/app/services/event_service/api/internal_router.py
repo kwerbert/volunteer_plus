@@ -36,7 +36,7 @@ async def get_participation_role_info(
     _: bool = Depends(verify_service_key),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Этап 8.1: analytics_service получает event_role_id, название роли
+    """Analytics_service получает event_role_id, название роли
     и hours_value. 404 — мероприятие/регистрация не найдены (→ дефолтные часы)."""
     info = await EventService(db).get_participation_role_info(event_id, user_id)
     if info is None:

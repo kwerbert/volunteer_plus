@@ -12,7 +12,7 @@ async_session_maker = async_sessionmaker(
 
 
 async def _migrate_analytics_columns(conn) -> None:
-    """Идемпотентная миграция без Alembic (паттерн этапов 1/3)."""
+    """Идемпотентная миграция без Alembic"""
 
     def _columns(sync_conn):
         return [c["name"] for c in inspect(sync_conn).get_columns("volunteer_stats")]

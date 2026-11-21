@@ -514,8 +514,6 @@ class TestMainApp:
 
 
 class TestStage2InternalAPI:
-    """Этап 2: by-email + расширенный verify для organization_service."""
-
     def test_022_by_email_route_registered(self, clear_user_settings_cache):
         from app.services.user_service.main import app
         from tests.conftest import collect_route_paths
@@ -552,6 +550,357 @@ class TestStage2InternalAPI:
         user = await service.get_user_by_email("org@example.com")
         assert user is not None and user.role == UserRoleEnum.ORGANIZER
         mock_user_repo.get_by_email.assert_awaited_once_with("org@example.com")
+
+from datetime import timedelta
+
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+from app.services.user_service.api.deps import (
+    get_current_user_id as user_get_uid,
+)
+from app.services.user_service.api.deps import (
+    get_db as user_get_db,
+)
+from app.services.user_service.core.security import hash_password
+from app.services.user_service.db.models import (
+    Base as UserBase,
+)
+from app.services.user_service.db.models import (
+    OrganizerApplication,
+    OrganizerApplicationStatus,
+    User,
+    UserRoleEnum,
+)
+from app.services.user_service.main import app as user_app
+
+_USER_TEST_DB = "sqlite+aiosqlite:///./test_users_stage9.db"
+_u_engine = create_async_engine(_USER_TEST_DB, echo=False, future=True)
+_u_factory = async_sessionmaker(_u_engine, class_=AsyncSession, expire_on_commit=False)
+
+
+@pytest.fixture()
+async def udb():
+    """Тестовая БД user_service: таблицы → сессия → очистка."""
+    async with _u_engine.begin() as conn:
+        await conn.run_sync(UserBase.metadata.create_all)
+    async with _u_factory() as session:
+        yield session
+    async with _u_engine.begin() as conn:
+        await conn.run_sync(UserBase.metadata.drop_all)
+
+
+@pytest.fixture()
+async def uclient(udb):
+    """HTTP-клиент с подменой get_db на тестовую сессию."""
+
+    async def _override_db():
+        yield udb
+
+    user_app.dependency_overrides[user_get_db] = _override_db
+    transport = ASGITransport(app=user_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
+    user_app.dependency_overrides.clear()
+
+
+def _login(user_id: int):
+    """Подмена JWT-аутентификации: возвращаем конкретный user_id."""
+    user_app.dependency_overrides[user_get_uid] = lambda: user_id
+
+
+async def _mk_user(
+    db, uid, email, role=UserRoleEnum.VOLUNTEER, is_admin=False, is_active=True
+):
+    """Создаёт пользователя в тестовой БД."""
+    u = User(
+        id=uid,
+        email=email,
+        password_hash=hash_password("Passw0rd!"),
+        full_name=f"User {uid}",
+        role=role,
+        is_admin=is_admin,
+        is_active=is_active,
+    )
+    db.add(u)
+    await db.flush()
+    return u
+
+
+async def _mk_application(
+    db, user_id, status, reviewed_at=None, reviewed_by=None, reason=None
+):
+    """Создаёт заявку напрямую в БД (для подготовки сценариев)."""
+    app = OrganizerApplication(
+        user_id=user_id,
+        status=status,
+        reviewed_at=reviewed_at,
+        reviewed_by=reviewed_by,
+        rejection_reason=reason,
+    )
+    db.add(app)
+    await db.flush()
+    return app
+
+
+@pytest.mark.asyncio
+class TestOrganizerApplications:
+    # ---------- Подача заявки ----------
+
+    async def test_025_volunteer_creates_application(self, uclient, udb):
+        """Волонтёр подаёт заявку → 201, статус pending."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await udb.commit()
+        _login(1)
+
+        resp = await uclient.post("/api/v1/organizer-applications")
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data["user_id"] == 1
+        assert data["status"] == "pending"
+        assert data["reviewed_by"] is None
+        assert data["reviewed_at"] is None
+
+    async def test_026_organizer_cannot_apply(self, uclient, udb):
+        """Пользователь уже ORGANIZER → 400."""
+        await _mk_user(udb, 2, "org@test.com", role=UserRoleEnum.ORGANIZER)
+        await udb.commit()
+        _login(2)
+
+        resp = await uclient.post("/api/v1/organizer-applications")
+        assert resp.status_code == 400
+        assert "организатором" in resp.json()["detail"].lower()
+
+    async def test_027_pending_duplicate_409(self, uclient, udb):
+        """Активная заявка (pending) уже есть → 409."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await _mk_application(udb, 1, OrganizerApplicationStatus.PENDING)
+        await udb.commit()
+        _login(1)
+
+        resp = await uclient.post("/api/v1/organizer-applications")
+        assert resp.status_code == 409
+
+    async def test_028_cooldown_after_rejection_429(self, uclient, udb):
+        """Отклонена менее 1 часа назад → 429 с временем повтора."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await _mk_user(udb, 3, "admin@test.com", is_admin=True)
+        await _mk_application(
+            udb,
+            1,
+            OrganizerApplicationStatus.REJECTED,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(minutes=30),
+            reviewed_by=3,
+            reason="Недостаточно данных",
+        )
+        await udb.commit()
+        _login(1)
+
+        resp = await uclient.post("/api/v1/organizer-applications")
+        assert resp.status_code == 429
+        detail = resp.json()["detail"]
+        assert "retry_at" in detail
+        assert "retry_after_seconds" in detail
+        assert detail["retry_after_seconds"] > 0
+        assert "Retry-After" in resp.headers
+
+    async def test_029_apply_after_cooldown(self, uclient, udb):
+        """Отклонена более 1 часа назад → повторная подача разрешена (201)."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await _mk_user(udb, 3, "admin@test.com", is_admin=True)
+        await _mk_application(
+            udb,
+            1,
+            OrganizerApplicationStatus.REJECTED,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(hours=2),
+            reviewed_by=3,
+            reason="Старое отклонение",
+        )
+        await udb.commit()
+        _login(1)
+
+        resp = await uclient.post("/api/v1/organizer-applications")
+        assert resp.status_code == 201, resp.text
+
+    # ---------- Получение своей заявки ----------
+
+    async def test_030_get_my_latest_application(self, uclient, udb):
+        """GET /me возвращает последнюю заявку."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await _mk_application(
+            udb, 1, OrganizerApplicationStatus.REJECTED, reviewed_by=3
+        )
+        app2 = await _mk_application(udb, 1, OrganizerApplicationStatus.PENDING)
+        await udb.commit()
+        _login(1)
+
+        resp = await uclient.get("/api/v1/organizer-applications/me")
+        assert resp.status_code == 200
+        assert resp.json()["id"] == app2.id
+        assert resp.json()["status"] == "pending"
+
+    async def test_031_get_my_application_404(self, uclient, udb):
+        """Заявок не было → 404."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await udb.commit()
+        _login(1)
+
+        resp = await uclient.get("/api/v1/organizer-applications/me")
+        assert resp.status_code == 404
+
+    # ---------- Одобрение / отклонение ----------
+
+    async def test_032_admin_approves_application(self, uclient, udb):
+        """Админ одобряет → роль пользователя меняется на ORGANIZER."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await _mk_user(udb, 3, "admin@test.com", is_admin=True)
+        app = await _mk_application(udb, 1, OrganizerApplicationStatus.PENDING)
+        await udb.commit()
+        _login(3)
+
+        resp = await uclient.patch(
+            f"/api/v1/organizer-applications/{app.id}",
+            json={"status": "approved"},
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["status"] == "approved"
+        assert data["reviewed_by"] == 3
+        assert data["reviewed_at"] is not None
+        assert data["rejection_reason"] is None
+
+        # Проверяем смену роли в БД
+        user = await udb.get(User, 1)
+        await udb.refresh(user)
+        assert user.role == UserRoleEnum.ORGANIZER
+
+    async def test_033_admin_rejects_with_reason(self, uclient, udb):
+        """Админ отклоняет с указанием причины. Роль не меняется."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await _mk_user(udb, 3, "admin@test.com", is_admin=True)
+        app = await _mk_application(udb, 1, OrganizerApplicationStatus.PENDING)
+        await udb.commit()
+        _login(3)
+
+        resp = await uclient.patch(
+            f"/api/v1/organizer-applications/{app.id}",
+            json={"status": "rejected", "rejection_reason": "Мало опыта"},
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["status"] == "rejected"
+        assert data["rejection_reason"] == "Мало опыта"
+
+        user = await udb.get(User, 1)
+        await udb.refresh(user)
+        assert user.role == UserRoleEnum.VOLUNTEER  # не изменилась
+
+    async def test_034_non_admin_cannot_review(self, uclient, udb):
+        """Не админ пытается рассмотреть заявку → 403."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await _mk_user(udb, 2, "vol2@test.com")  # обычный волонтёр
+        app = await _mk_application(udb, 1, OrganizerApplicationStatus.PENDING)
+        await udb.commit()
+        _login(2)
+
+        resp = await uclient.patch(
+            f"/api/v1/organizer-applications/{app.id}",
+            json={"status": "approved"},
+        )
+        assert resp.status_code == 403
+
+    async def test_035_review_nonexistent_404(self, uclient, udb):
+        """Заявка не найдена → 404."""
+        await _mk_user(udb, 3, "admin@test.com", is_admin=True)
+        await udb.commit()
+        _login(3)
+
+        resp = await uclient.patch(
+            "/api/v1/organizer-applications/99999",
+            json={"status": "approved"},
+        )
+        assert resp.status_code == 404
+
+    async def test_036_review_already_reviewed_409(self, uclient, udb):
+        """Заявка уже рассмотрена → 409."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await _mk_user(udb, 3, "admin@test.com", is_admin=True)
+        await _mk_application(
+            udb,
+            1,
+            OrganizerApplicationStatus.APPROVED,
+            reviewed_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            reviewed_by=3,
+        )
+        await udb.commit()
+        _login(3)
+
+        resp = await uclient.patch(
+            "/api/v1/organizer-applications/1",
+            json={"status": "rejected"},
+        )
+        assert resp.status_code == 409
+
+    async def test_037_self_review_forbidden(self, uclient, udb):
+        """Админ не может рассматривать собственную заявку → 403."""
+        await _mk_user(udb, 3, "admin@test.com", is_admin=True)
+        app = await _mk_application(udb, 3, OrganizerApplicationStatus.PENDING)
+        await udb.commit()
+        _login(3)
+
+        resp = await uclient.patch(
+            f"/api/v1/organizer-applications/{app.id}",
+            json={"status": "approved"},
+        )
+        assert resp.status_code == 403
+
+    async def test_038_review_deactivated_user_404(self, uclient, udb):
+        """Пользователь деактивирован → 404 при рассмотрении."""
+        await _mk_user(udb, 1, "vol@test.com", is_active=False)
+        await _mk_user(udb, 3, "admin@test.com", is_admin=True)
+        app = await _mk_application(udb, 1, OrganizerApplicationStatus.PENDING)
+        await udb.commit()
+        _login(3)
+
+        resp = await uclient.patch(
+            f"/api/v1/organizer-applications/{app.id}",
+            json={"status": "approved"},
+        )
+        assert resp.status_code == 404
+
+    # ---------- Зависимость require_admin ----------
+
+    async def test_039_require_admin_passes(self, uclient, udb):
+        """is_admin=True → доступ к защищённому эндпоинту."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await _mk_user(udb, 3, "admin@test.com", is_admin=True)
+        app = await _mk_application(udb, 1, OrganizerApplicationStatus.PENDING)
+        await udb.commit()
+        _login(3)
+
+        resp = await uclient.patch(
+            f"/api/v1/organizer-applications/{app.id}",
+            json={"status": "approved"},
+        )
+        assert resp.status_code == 200
+
+    async def test_040_require_admin_denies_volunteer(self, uclient, udb):
+        """is_admin=False → 403 (проверка зависимости require_admin)."""
+        await _mk_user(udb, 1, "vol@test.com")
+        await _mk_user(udb, 4, "vol_organizer@test.com", role=UserRoleEnum.ORGANIZER)
+        app = await _mk_application(udb, 1, OrganizerApplicationStatus.PENDING)
+        await udb.commit()
+        _login(4)  # организатор, но НЕ админ
+
+        resp = await uclient.patch(
+            f"/api/v1/organizer-applications/{app.id}",
+            json={"status": "approved"},
+        )
+        assert resp.status_code == 403
 
 
 if __name__ == "__main__":
