@@ -24,8 +24,6 @@ class ParticipationStatus(str, enum.Enum):
 
 
 class EventStatus(str, enum.Enum):
-    """Жизненный цикл мероприятия (этап 3.4). Отмена/завершение — этап 4."""
-
     ACTIVE = "active"
     CANCELLED = "cancelled"
     COMPLETED = "completed"
@@ -47,8 +45,6 @@ class Event(Base):
     status = Column(String(20), default=EventStatus.ACTIVE.value, nullable=False)
     image_url = Column(String(512), nullable=True)
     cancelled_at = Column(DateTime, nullable=True)
-    # True — организатор задал роли; False — одна авто-дефолтная «Участник».
-    # Храним явно, чтобы этап 4 (обязательный выбор) не гадал по имени роли.
     has_custom_roles = Column(Boolean, default=False, nullable=False)
 
 
@@ -75,8 +71,5 @@ class Participation(Base):
     status = Column(
         SQLEnum(ParticipationStatus), default=ParticipationStatus.REGISTERED
     )
-    registered_at = Column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc)
-    )
+    registered_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     checked_in_at = Column(DateTime, nullable=True)

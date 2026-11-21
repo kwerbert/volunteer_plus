@@ -1,8 +1,3 @@
-"""
-Тесты Feed Service (оптимизировано: 7 → 4 теста без потери покрытия)
-Требует: pip install pytest-asyncio
-"""
-
 import os
 import sys
 import time
@@ -13,9 +8,6 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-# ============================================================================
-# 1. КОНФИГУРАЦИЯ И ЗАВИСИМОСТИ
-# ============================================================================
 class TestConfigAndSetup:
     def test_001_config_and_dependencies(self):
         """Проверка загрузки конфига и корректности зависимостей"""
@@ -33,9 +25,6 @@ class TestConfigAndSetup:
         assert callable(get_settings)
 
 
-# ============================================================================
-# 2. СХЕМЫ И ВАЛИДАЦИЯ
-# ============================================================================
 class TestSchemas:
     def test_002_schema_validation_and_responses(self):
         """Проверка Pydantic валидации и сборки ответа"""
@@ -99,9 +88,6 @@ class TestSchemas:
         assert len(feed.sections) == 1
 
 
-# ============================================================================
-# 3. КЭШ И ГЕОФИЛЬТРАЦИЯ
-# ============================================================================
 class TestCoreLogic:
     def test_003_cache_and_geofilter(self):
         """Проверка TTL-кэша и фильтрации по геолокации (Haversine)"""
@@ -155,9 +141,6 @@ class TestCoreLogic:
         assert calculate_distance(55.7558, 37.6173, 59.9343, 30.3351) > 600
 
 
-# ============================================================================
-# 4. АСИНХРОННЫЙ РЕПОЗИТОРИЙ
-# ============================================================================
 @pytest.mark.asyncio
 class TestAsyncRepository:
     async def test_004_async_repo_logging(self):
@@ -188,6 +171,3 @@ class TestAsyncRepository:
             assert stats["avg_processing_time_ms"] == 150.0
             assert stats["cache_hit_rate_percent"] == 50.0
             assert stats["error_rate_percent"] == 50.0
-
-
-# pytest tests/test_feed_s.py -v

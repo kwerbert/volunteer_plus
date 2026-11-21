@@ -74,7 +74,6 @@ class OrganizerApplicationRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> list[OrganizerApplication]:
-        """Задел под админ-панель (эндпоинт пока не входит в Этап 1)."""
         stmt = select(OrganizerApplication)
         if status is not None:
             stmt = stmt.where(OrganizerApplication.status == status)

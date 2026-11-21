@@ -1,9 +1,3 @@
-"""
-Тесты Notification Service (pytest версия).
-Исправлены предупреждения IDE (Unresolved reference) путем перехода
-на patch("module.attr").
-"""
-
 import os
 import sys
 import tempfile
@@ -12,9 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-# ============================================================================
-# Настройка путей
-# ============================================================================
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, ".."))
 if PROJECT_ROOT not in sys.path:
@@ -65,9 +56,6 @@ def make_token(
     )
 
 
-# ============================================================================
-# FIXTURES
-# ============================================================================
 @pytest.fixture
 def mock_session():
     session = AsyncMock()
@@ -135,9 +123,6 @@ def clear_notification_settings_cache():
         pass
 
 
-# ============================================================================
-# ТЕСТЫ
-# ============================================================================
 class TestConfig:
     def test_001_config_settings(self, clear_notification_settings_cache):
         from app.services.notification_service.config import get_settings
@@ -252,14 +237,10 @@ class TestNotificationService:
         assert mock_repo.create_push_log.call_args.kwargs["status"] == "UNREGISTERED"
 
 
-# ============================================================================
-# ИСПРАВЛЕНО: FirebaseProvider (Заменен patch.object на patch("..."))
-# ============================================================================
 class TestFirebaseProvider:
     @pytest.mark.asyncio
     async def test_036_enabled_send_success(self):
         with tempfile.NamedTemporaryFile() as tmp:
-            # Использование строкового пути избавляет IDE от попыток найти эти атрибуты
             with (
                 patch(
                     "app.services.notification_service.providers.firebase_provider.initialize_app"
@@ -322,8 +303,6 @@ class TestFirebaseProvider:
                 messaging.APNSConfig = MagicMock()
                 messaging.APNSPayload = MagicMock()
                 messaging.Aps = MagicMock()
-
-                # ИСПРАВЛЕНО: Сначала задаем класс исключения, потом вешаем его на send
                 messaging.UnregisteredError = MockUnregisteredError
                 messaging.InvalidArgumentError = type(
                     "InvalidArgumentError", (Exception,), {}
@@ -347,9 +326,6 @@ class TestFirebaseProvider:
             assert result["error"] == "UNREGISTERED"
 
 
-# ============================================================================
-# ИСПРАВЛЕНО: Router Helpers (Заменен patch.object на patch("..."))
-# ============================================================================
 class TestRouterHelpers:
     def test_038_verify_service_key_valid(self):
         from app.services.notification_service.api import router as rmod
@@ -371,9 +347,6 @@ class TestRouterHelpers:
             assert exc.value.status_code == 403
 
 
-# ============================================================================
-# ЗАПУСК
-# ============================================================================
 if __name__ == "__main__":
     exit_code = pytest.main([__file__, "-v", "--tb=short", "-s"])
     sys.exit(exit_code)

@@ -1,10 +1,7 @@
-"""
-Тесты Organization Service (этап 2: организация ↔ организаторы).
-"""
-
 import os
 import sys
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -23,6 +20,7 @@ from app.services.organization_service.db.models import (
 from app.services.organization_service.db.session import get_db_session
 from app.services.organization_service.main import app
 from app.services.organization_service.schemas import CurrentUser
+from app.utils.notifications_enums import NotificationType
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_org.db"
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
@@ -80,6 +78,39 @@ async def test_category(test_db):
     test_db.add(category)
     await test_db.commit()
     return category
+
+
+@pytest.fixture(scope="function", autouse=True)
+def event_client_mock():
+    """Удаление организации ходит в event_service — мокаем."""
+    with patch(
+        "app.services.organization_service.service.cancel_organization_events",
+        new=AsyncMock(
+            return_value={
+                "organization_id": 0,
+                "cancelled_events": 0,
+                "cancelled_participations": 0,
+                "notified_volunteers": 0,
+                "completed_events": 0,
+            }
+        ),
+    ) as m:
+        yield m
+
+
+@pytest.mark.asyncio
+async def test_delete_organization_cancels_events(client, event_client_mock):
+    org_id = await create_org(client)
+    assert (await client.delete(f"/api/v1/organizations/{org_id}")).status_code == 204
+    event_client_mock.assert_awaited_once_with(org_id)
+
+
+@pytest.mark.asyncio
+async def test_delete_forbidden_does_not_touch_events(client, event_client_mock):
+    org_id = await create_org(client)
+    login_as(OTHER_ORGANIZER)
+    assert (await client.delete(f"/api/v1/organizations/{org_id}")).status_code == 403
+    event_client_mock.assert_not_awaited()
 
 
 async def create_org(client, name: str = "Test Org") -> int:
@@ -363,3 +394,152 @@ async def test_owner_can_create_new_org_after_deletion(client):
     await client.delete(f"/api/v1/organizations/{org_id}")
     resp = await client.post("/api/v1/organizations", json={"name": "New Org"})
     assert resp.status_code == 201  # слот владельца освобождён partial-индексом
+
+
+@pytest.fixture(scope="function", autouse=True)
+def notify_mock():
+    with patch(
+        "app.services.organization_service.service."
+        "NotificationServiceClient.notify_background",
+        new=MagicMock(),
+    ) as m:
+        yield m
+
+
+@pytest.mark.asyncio
+async def test_add_organizer_notifies_existing_organizers(client, notify_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        resp = await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    assert resp.status_code == 201
+    notify_mock.assert_called_once()
+    kw = notify_mock.call_args.kwargs
+    assert kw["notification_type"] == NotificationType.NEW_ORGANIZER_ADDED
+    assert kw["user_ids"] == [OWNER.id]  # нового организатора не уведомляем
+    assert kw["data"] == {"org_id": org_id, "user_id": 5}
+
+
+@pytest.mark.asyncio
+async def test_duplicate_organizer_does_not_notify(client, notify_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+        notify_mock.reset_mock()
+        dup = await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    assert dup.status_code == 409
+    notify_mock.assert_not_called()
+
+
+@pytest.fixture(scope="function", autouse=True)
+def chat_client_mock():
+    with (
+        patch(
+            "app.services.organization_service.service.add_organizer_to_chats",
+            new=AsyncMock(return_value=True),
+        ) as add_mock,
+        patch(
+            "app.services.organization_service.service.remove_organizer_from_chats",
+            new=AsyncMock(return_value=True),
+        ) as remove_mock,
+    ):
+        yield SimpleNamespace(add=add_mock, remove=remove_mock)
+
+
+@pytest.mark.asyncio
+async def test_add_organizer_syncs_org_chats(client, chat_client_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        resp = await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    assert resp.status_code == 201
+    chat_client_mock.add.assert_awaited_once_with(org_id, 5)
+    chat_client_mock.remove.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_remove_organizer_syncs_org_chats(client, chat_client_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    chat_client_mock.add.reset_mock()
+    resp = await client.delete(f"/api/v1/organizations/{org_id}/organizers/5")
+    assert resp.status_code == 204
+    chat_client_mock.remove.assert_awaited_once_with(org_id, 5)
+    chat_client_mock.add.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_duplicate_organizer_does_not_sync_chats(client, chat_client_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+        dup = await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    assert dup.status_code == 409
+    assert chat_client_mock.add.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_chat_sync_failure_does_not_break_add(client, chat_client_mock):
+    chat_client_mock.add.side_effect = Exception("chat service down")
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        resp = await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    assert resp.status_code == 201  # побочный эффект не роняет бизнес-операцию
+
+
+@pytest.mark.asyncio
+async def test_chat_sync_failure_does_not_break_remove(client, chat_client_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    chat_client_mock.remove.side_effect = Exception("chat service down")
+    assert (
+        await client.delete(f"/api/v1/organizations/{org_id}/organizers/5")
+    ).status_code == 204

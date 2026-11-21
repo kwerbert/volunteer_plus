@@ -37,7 +37,14 @@ class Notification(Base):
     user_id = Column(Integer, nullable=False, index=True)
     title = Column(String(255), nullable=False)
     body = Column(String, nullable=False)
-    notification_type = Column(SQLEnum(NotificationType), nullable=False)
+    notification_type = Column(
+        SQLEnum(
+            NotificationType,
+            native_enum=False,
+            values_callable=lambda e: [m.value for m in e],
+        ),
+        nullable=False,
+    )
     priority = Column(SQLEnum(Priority), default=Priority.NORMAL)
     data = Column(JSON, default=dict)
     is_read = Column(Boolean, default=False)

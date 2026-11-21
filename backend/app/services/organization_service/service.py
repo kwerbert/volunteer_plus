@@ -6,10 +6,15 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.utils.notifications_enums import NotificationType
+
 from .db.models import Organization, OrganizationOrganizer, OrgOrganizerRole
 from .db.organizer_repository import OrganizationOrganizerRepository
 from .schemas import CurrentUser, OrganizationCreate
+from .utils.chat_client import add_organizer_to_chats, remove_organizer_from_chats
+from .utils.event_client import cancel_organization_events
 from .utils.http_client import get_user_by_email
+from .utils.notification_client import NotificationServiceClient
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +23,7 @@ class OrganizationService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.organizers = OrganizationOrganizerRepository(db)
+        self.notifications = NotificationServiceClient()
 
     # === Создание ===
 
@@ -106,9 +112,42 @@ class OrganizationService:
 
     # === Организаторы организации ===
 
+    async def list_user_organization_ids(self, user_id: int) -> List[int]:
+        """Организации пользователя-организатора для feed_service.
+        Пустой список — не организатор / без организации (не 404)."""
+        return await self.organizers.get_active_organization_ids(user_id)
+
     async def list_organizers(self, org_id: int) -> List[OrganizationOrganizer]:
         await self._get_active_org_or_404(org_id)
         return await self.organizers.get_active_by_organization(org_id)
+
+    async def _notify_organizers_added(
+        self, org_id: int, new_user_id: int, user_info: dict
+    ) -> None:
+        """NEW_ORGANIZER_ADDED всем действующим организаторам, кроме нового."""
+        try:
+            members = await self.organizers.get_active_by_organization(org_id)
+            recipients = sorted(
+                {m.user_id for m in members if m.user_id != new_user_id}
+            )
+            if not recipients:
+                return
+            org = await self.db.get(Organization, org_id)
+            org_name = org.name if org else f"#{org_id}"
+            who = (
+                user_info.get("full_name")
+                or user_info.get("email")
+                or f"#{new_user_id}"
+            )
+            self.notifications.notify_background(
+                user_ids=recipients,
+                title="Новый организатор",
+                body=f"{who} добавлен(а) в организацию «{org_name}»",
+                notification_type=NotificationType.NEW_ORGANIZER_ADDED,
+                data={"org_id": org_id, "user_id": new_user_id},
+            )
+        except Exception:
+            logger.warning("Failed to schedule NEW_ORGANIZER_ADDED for org %s", org_id)
 
     async def add_organizer(
         self, org_id: int, email: str, current_user: CurrentUser
@@ -155,7 +194,15 @@ class OrganizationService:
                 status_code=409, detail="Пользователь уже организатор этой организации"
             )
         await self.db.refresh(membership)
-        # TODO(этап 5): добавить нового организатора в существующие чаты организации.
+        await self._notify_organizers_added(org_id, target_id, user_info)
+        try:
+            await add_organizer_to_chats(org_id, target_id)
+        except Exception:
+            logger.warning(
+                "Failed to sync chats for new organizer %s of org %s",
+                target_id,
+                org_id,
+            )
         logger.info(
             "User %s added as organizer of org %s by %s",
             target_id,
@@ -185,7 +232,14 @@ class OrganizationService:
             )
         await self.organizers.deactivate(membership)
         await self.db.commit()
-        # T0DO(этап 5): убрать организатора из чатов организации.
+        try:
+            await remove_organizer_from_chats(org_id, user_id)
+        except Exception:
+            logger.warning(
+                "Failed to remove organizer %s from chats of org %s",
+                user_id,
+                org_id,
+            )
         logger.info(
             "User %s removed from organizers of org %s by %s",
             user_id,
@@ -203,13 +257,22 @@ class OrganizationService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Удалить организацию может только владелец или администратор",
             )
+
+        # Сначала отменяем активные/будущие мероприятия.
+        # Завершённые остаются как есть — название организации «заморожено»
+        # (GET /organizations/{id} отдаёт и неактивные организации).
+        # Если event_service недоступен — 503 и ничего не меняем.
+        stats = await cancel_organization_events(org_id)
+
         await self.organizers.deactivate_all_for_organization(org_id)
         org.is_active = False
         await self.db.commit()
-        # T0DO(этап 4): отменить активные/будущие мероприятия организации через
-        # event_service; завершённые не трогаем — название организации
-        # «замораживается» в их карточках (снапшот org_name появится в этапе 4).
-        logger.info("Organization %s deactivated by user %s", org_id, current_user.id)
+        logger.info(
+            "Organization %s deactivated by user %s (cancelled_events=%s)",
+            org_id,
+            current_user.id,
+            stats.get("cancelled_events", 0),
+        )
 
     # === Верификация (заглушка, только админ) ===
 

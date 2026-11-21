@@ -17,6 +17,18 @@ class Settings(BaseSettings):
     USER_SERVICE_URL: str = "http://localhost:8008"
     EVENT_SERVICE_URL: str = "http://localhost:8003"
 
+    NOTIFICATION_SERVICE_URL: str = Field(
+        default="http://localhost:8006",
+        description="URL notification-сервиса",
+    )
+    NOTIFICATION_TIMEOUT_SECONDS: float = 3.0
+
+    CHAT_SERVICE_URL: str = Field(
+        default="http://localhost:8007",
+        description="URL chat-сервиса (синхронизация чатов)",
+    )
+    CHAT_TIMEOUT_SECONDS: float = 5.0
+
     SERVICE_API_KEY: str = Field(
         default="dev-insecure-service-key-change-in-production",
         description="Service-to-service API key (env: ORGANIZATION_SERVICE_API_KEY)",

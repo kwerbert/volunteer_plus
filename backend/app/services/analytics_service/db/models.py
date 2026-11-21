@@ -11,6 +11,7 @@ class VolunteerStats(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, nullable=False, index=True)
     organization_id = Column(Integer, nullable=True, index=True)
+    organization_name_snapshot = Column(String(255), nullable=True)
     role = Column(String(100), nullable=True)
     hours_worked = Column(Float, default=0.0)
     events_completed = Column(Integer, default=0)

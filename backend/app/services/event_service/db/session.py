@@ -12,11 +12,6 @@ async_session_maker = async_sessionmaker(
 
 
 async def _migrate_event_columns(conn) -> None:
-    """Идемпотентная миграция без Alembic (паттерн user_service этапа 1):
-    добавляет новые колонки events, если их ещё нет. Новые таблицы (event_roles)
-    создаются через create_all.
-    """
-
     def _columns(sync_conn):
         return [c["name"] for c in inspect(sync_conn).get_columns("events")]
 

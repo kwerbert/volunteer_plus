@@ -23,6 +23,7 @@ class AnalyticsRepository:
         events: int = 0,
         org_id: Optional[int] = None,
         role: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> VolunteerStats:
         if org_id is not None:
             stmt = select(VolunteerStats).where(
@@ -32,14 +33,18 @@ class AnalyticsRepository:
             )
             result = await self.session.execute(stmt)
             existing = result.scalar_one_or_none()
+
             if existing:
                 existing.hours_worked += hours
                 existing.events_completed += events
                 existing.last_activity = datetime.now(timezone.utc)
+                if org_name and not existing.organization_name_snapshot:
+                    existing.organization_name_snapshot = org_name
             else:
                 new_stats = VolunteerStats(
                     user_id=user_id,
                     organization_id=org_id,
+                    organization_name_snapshot=org_name,
                     role=role,
                     hours_worked=hours,
                     events_completed=events,
@@ -47,12 +52,12 @@ class AnalyticsRepository:
                 )
                 self.session.add(new_stats)
                 existing = new_stats
+
             await self.session.commit()
             await self.session.refresh(existing)
             return existing
         else:
             # Если нет org_id – ничего не делаем или возвращаем заглушку
-            # Но по логике этот кейс не должен вызываться. Возвращаем пустой объект с user_id.
             dummy = VolunteerStats(user_id=user_id, hours_worked=0, events_completed=0)
             return dummy
 
@@ -63,6 +68,9 @@ class AnalyticsRepository:
                 func.sum(VolunteerStats.hours_worked).label("total_hours"),
                 func.sum(VolunteerStats.events_completed).label("total_events"),
                 VolunteerStats.role,
+                func.max(VolunteerStats.organization_name_snapshot).label(
+                    "organization_name_snapshot"
+                ),
             )
             .where(
                 VolunteerStats.user_id == user_id,
@@ -74,6 +82,7 @@ class AnalyticsRepository:
         rows = result.fetchall()
         return [
             {
+                "organization_name_snapshot": row.organization_name_snapshot,
                 "organization_id": row.organization_id,
                 "hours_worked": row.total_hours or 0.0,
                 "events_completed": row.total_events or 0,
@@ -120,7 +129,6 @@ class AnalyticsRepository:
             )
             self.session.add(new_stats)
             existing_stats = new_stats
-
         await self.session.commit()
         await self.session.refresh(existing_stats)
         return existing_stats
@@ -152,7 +160,6 @@ class AnalyticsRepository:
             )
             self.session.add(new_role)
             existing_role = new_role
-
         await self.session.commit()
         await self.session.refresh(existing_role)
         return existing_role

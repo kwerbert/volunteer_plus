@@ -148,14 +148,6 @@ class EventVerifyResponse(BaseModel):
 
 
 class NotificationRequest(BaseModel):
-    """Запрос отправки уведомления (в Notification Service).
-
-    Зеркально повторяет notification_service.api.schemas.CreateNotificationRequest
-    по составу полей. Тип `notification_type` и `priority` — общие enum'ы,
-    поэтому рассинхрон будет пойман на этапе `model_dump(mode="json")`,
-    а не после HTTP-вызова (как было с 422).
-    """
-
     user_id: int
     title: str
     body: str

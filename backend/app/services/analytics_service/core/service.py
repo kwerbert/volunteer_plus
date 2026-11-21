@@ -34,7 +34,6 @@ class AnalyticsService:
 
             # 2. Достаем базовую запись для метаданных (id, created_at)
             stats = await self.repo.get_user_stats(user_id)
-
             if not stats:
                 # Если нет вообще никаких записей (новый пользователь)
                 return UserStatsResponse(
@@ -67,13 +66,12 @@ class AnalyticsService:
     async def get_organization_analytics(
         self, user_id: int
     ) -> OrganizationStatsResponse:
-        """Аналитика по организациям"""
         org_data = await self.repo.get_stats_by_organization(user_id)
-
-        # Получаем названия организаций из Organization Service
         organizations = []
         for org in org_data:
-            org_name = await self._get_organization_name(org["organization_id"])
+            org_name = org.get("organization_name_snapshot")
+            if not org_name:
+                org_name = await self._get_organization_name(org["organization_id"])
             organizations.append(
                 {
                     "organization_id": org["organization_id"],
@@ -83,7 +81,6 @@ class AnalyticsService:
                     "role": org["role"],
                 }
             )
-
         return OrganizationStatsResponse(
             user_id=user_id,
             organizations=organizations,
@@ -96,7 +93,6 @@ class AnalyticsService:
     ) -> MonthlyStatsResponse:
         """Ежемесячная аналитика"""
         monthly_data = await self.repo.get_monthly_stats(user_id, months)
-
         months_list = [
             {
                 "year": m.year,
@@ -106,10 +102,8 @@ class AnalyticsService:
             }
             for m in monthly_data
         ]
-
         total_hours = sum(m.hours_worked for m in monthly_data)
         total_events = sum(m.events_completed for m in monthly_data)
-
         return MonthlyStatsResponse(
             user_id=user_id,
             months=months_list,
@@ -125,10 +119,7 @@ class AnalyticsService:
         hours: Optional[float] = None,
         role: Optional[str] = None,
     ) -> EventCompleteResponse:
-        """Завершение мероприятия и обновление статистики"""
-        # Получаем информацию о мероприятии
         event_info = await self._get_event_info(event_id)
-
         if not event_info:
             return EventCompleteResponse(
                 success=False,
@@ -138,16 +129,28 @@ class AnalyticsService:
                 message="Мероприятие не найдено",
             )
 
-        # Расчёт часов
-        hours_worked = hours or self.settings.DEFAULT_EVENT_HOURS
+        # 8.1: event_role_id → hours_value; 8.2: event_roles.name
+        participation = await self._get_participation_role_info(event_id, user_id)
+        hours_worked = hours
+        role_name = role
+        if participation:
+            if hours_worked is None:
+                hours_worked = participation.get("hours_value")
+            if role_name is None:
+                role_name = participation.get("role_name")
+        if hours_worked is None:
+            hours_worked = self.settings.DEFAULT_EVENT_HOURS
 
-        # Обновляем общую статистику
+        org_id = event_info.get("org_id")
+        org_name = await self._get_organization_name(org_id) if org_id else None
+
         await self.repo.create_or_update_stats(
             user_id=user_id,
             hours=hours_worked,
             events=1,
-            org_id=event_info.get("org_id"),
-            role=role,
+            org_id=org_id,
+            role=role_name,
+            org_name=org_name,
         )
 
         # Обновляем месячную статистику
@@ -160,12 +163,19 @@ class AnalyticsService:
             events=1,
         )
 
-        # Обновляем предпочтительные роли
-        if role:
+        # 8.2: предпочтительные роли — по названию роли мероприятия
+        if role_name:
             await self.repo.update_preferred_roles(
-                user_id=user_id, role=role, hours=hours_worked, events_count=1
+                user_id=user_id, role=role_name, hours=hours_worked, events_count=1
             )
 
+        logger.info(
+            "Event %s completed for user %s: +%s hours (role=%s)",
+            event_id,
+            user_id,
+            hours_worked,
+            role_name,
+        )
         return EventCompleteResponse(
             success=True,
             user_id=user_id,
@@ -177,7 +187,6 @@ class AnalyticsService:
     async def get_preferred_roles(self, user_id: int) -> PreferredRolesResponse:
         """Получение предпочтительных ролей пользователя"""
         roles = await self.repo.get_preferred_roles(user_id)
-
         if not roles:
             return PreferredRolesResponse(
                 user_id=user_id,
@@ -185,9 +194,7 @@ class AnalyticsService:
                 primary_role=None,
                 generated_at=datetime.now(),
             )
-
         total_score = sum(r.score for r in roles)
-
         roles_list = []
         for r in roles:
             percentage = (r.score / total_score * 100) if total_score > 0 else 0
@@ -199,9 +206,7 @@ class AnalyticsService:
                     percentage=round(percentage, 2),
                 )
             )
-
         primary_role = roles_list[0].role if roles_list else None
-
         return PreferredRolesResponse(
             user_id=user_id,
             roles=roles_list,
@@ -210,12 +215,13 @@ class AnalyticsService:
         )
 
     async def _get_organization_name(self, org_id: int) -> Optional[str]:
-        """Получение названия организации из Organization Service"""
+        """Получение названия организации из Organization Service.
+        GET отдаёт и неактивные организации — имя доступно и после удаления."""
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{self.settings.ORGANIZATION_SERVICE_URL}/api/v1/organizations/{org_id}",
-                    timeout=5,
+                    timeout=aiohttp.ClientTimeout(total=5),
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -230,10 +236,36 @@ class AnalyticsService:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f"{self.settings.EVENT_SERVICE_URL}/api/v1/events/{event_id}",
-                    timeout=5,
+                    timeout=aiohttp.ClientTimeout(total=5),
                 ) as response:
                     if response.status == 200:
                         return await response.json()
         except Exception as e:
             logger.error(f"Error fetching event {event_id}: {e}")
+        return None
+
+    async def _get_participation_role_info(
+        self, event_id: int, user_id: int
+    ) -> Optional[Dict[str, Any]]:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{self.settings.EVENT_SERVICE_URL}"
+                    f"/internal/events/{event_id}/participations/{user_id}",
+                    headers={"X-Service-Key": self.settings.SERVICE_API_KEY},
+                    timeout=aiohttp.ClientTimeout(total=5),
+                ) as response:
+                    if response.status == 200:
+                        return await response.json()
+                    if response.status != 404:
+                        logger.warning(
+                            "Event Service participation event=%s user=%s: HTTP %s",
+                            event_id,
+                            user_id,
+                            response.status,
+                        )
+        except Exception as e:
+            logger.error(
+                f"Error fetching participation event={event_id} user={user_id}: {e}"
+            )
         return None

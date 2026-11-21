@@ -50,7 +50,7 @@ class OrgOrganizerRole(str, enum.Enum):
 
 
 class OrganizationOrganizer(Base):
-    """Связь «организация ↔ организаторы» (этап 2).
+    """Связь «организация ↔ организаторы»
 
     Владелец — не роль пользователя, а запись здесь с role_in_org='owner'.
     Удаление мягкое (is_active=False), слоты освобождаются partial-индексами.

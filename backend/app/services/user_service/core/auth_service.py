@@ -119,6 +119,7 @@ class AuthService:
             "user_id": user.id,
             "email": user.email,
             "role": user.role.value if hasattr(user.role, "value") else user.role,
+            "is_admin": bool(user.is_admin),
         }
         access_token = create_access_token(token_data)
         refresh_token = create_refresh_token(token_data)

@@ -104,7 +104,7 @@ class UserVerifyResponse(BaseModel):
 
 
 class UserInternalResponse(BaseModel):
-    """Данные пользователя для внутренних сервисов (поиск по email, этап 2)."""
+    """Данные пользователя для внутренних сервисов (поиск по email)."""
 
     id: int
     email: str

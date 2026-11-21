@@ -9,8 +9,7 @@ from app.services.notification_service.api.router import router
 from app.services.notification_service.api.schemas import HealthResponse
 from app.services.notification_service.config import settings
 from app.services.notification_service.core.websocket_manager import get_ws_manager
-from app.services.notification_service.db.models import Base
-from app.services.notification_service.db.session import engine
+from app.services.notification_service.db.session import engine, init_db
 
 # Логирование
 logging.basicConfig(
@@ -28,9 +27,8 @@ async def lifespan(app: FastAPI):
     """Startup/Shutdown события"""
     # Startup: создаём таблицы
     logger.info("Starting Notification Service...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created/verified")
+    await init_db()
+    logger.info("Database tables created/verified (notification enums migrated)")
 
     yield
 
