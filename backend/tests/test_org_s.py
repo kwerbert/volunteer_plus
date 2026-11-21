@@ -1,5 +1,6 @@
 import os
 import sys
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -442,3 +443,104 @@ async def test_duplicate_organizer_does_not_notify(client, notify_mock):
         )
     assert dup.status_code == 409
     notify_mock.assert_not_called()
+
+
+@pytest.fixture(scope="function", autouse=True)
+def chat_client_mock():
+    """Этап 6: синхронизация чатов при добавлении/удалении организатора."""
+    with (
+        patch(
+            "app.services.organization_service.service.add_organizer_to_chats",
+            new=AsyncMock(return_value=True),
+        ) as add_mock,
+        patch(
+            "app.services.organization_service.service.remove_organizer_from_chats",
+            new=AsyncMock(return_value=True),
+        ) as remove_mock,
+    ):
+        yield SimpleNamespace(add=add_mock, remove=remove_mock)
+
+
+@pytest.mark.asyncio
+async def test_add_organizer_syncs_org_chats(client, chat_client_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        resp = await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    assert resp.status_code == 201
+    chat_client_mock.add.assert_awaited_once_with(org_id, 5)
+    chat_client_mock.remove.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_remove_organizer_syncs_org_chats(client, chat_client_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    chat_client_mock.add.reset_mock()
+    resp = await client.delete(f"/api/v1/organizations/{org_id}/organizers/5")
+    assert resp.status_code == 204
+    chat_client_mock.remove.assert_awaited_once_with(org_id, 5)
+    chat_client_mock.add.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_duplicate_organizer_does_not_sync_chats(client, chat_client_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+        dup = await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    assert dup.status_code == 409
+    assert chat_client_mock.add.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_chat_sync_failure_does_not_break_add(client, chat_client_mock):
+    chat_client_mock.add.side_effect = Exception("chat service down")
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        resp = await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    assert resp.status_code == 201  # побочный эффект не роняет бизнес-операцию
+
+
+@pytest.mark.asyncio
+async def test_chat_sync_failure_does_not_break_remove(client, chat_client_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    chat_client_mock.remove.side_effect = Exception("chat service down")
+    assert (
+        await client.delete(f"/api/v1/organizations/{org_id}/organizers/5")
+    ).status_code == 204

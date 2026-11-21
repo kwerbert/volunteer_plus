@@ -82,8 +82,8 @@ class ChatMember(Base):
     chat = relationship("Chat", back_populates="members")
 
     __table_args__ = (
-        # Уникальная комбинация chat_id + user_id для предотвращения дубликатов
-        # (но разрешаем несколько записей если пользователь покинул и вернулся)
+        # Одна запись на (chat_id, user_id): выход помечается left_at,
+        # возврат реактивирует ту же строку (ChatRepository.add_member, этап 6).
     )
 
 

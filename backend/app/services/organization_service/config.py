@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     )
     NOTIFICATION_TIMEOUT_SECONDS: float = 3.0
 
+    CHAT_SERVICE_URL: str = Field(
+        default="http://localhost:8007",
+        description="URL chat-сервиса (синхронизация чатов, этап 6)",
+    )
+    CHAT_TIMEOUT_SECONDS: float = 5.0
+
     SERVICE_API_KEY: str = Field(
         default="dev-insecure-service-key-change-in-production",
         description="Service-to-service API key (env: ORGANIZATION_SERVICE_API_KEY)",

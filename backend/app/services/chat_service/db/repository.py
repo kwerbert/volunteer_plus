@@ -78,11 +78,29 @@ class ChatRepository:
         await self.session.commit()
         return True
 
+    async def get_member(self, chat_id: int, user_id: int) -> Optional[ChatMember]:
+        # Последняя запись: исторически могли остаться дубли после выхода,
+        # scalar_one_or_none() на них падал (MultipleResultsFound).
+        stmt = (
+            select(ChatMember)
+            .where(ChatMember.chat_id == chat_id, ChatMember.user_id == user_id)
+            .order_by(ChatMember.id.desc())
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
+
     async def add_member(
         self, chat_id: int, user_id: int, role: str = "member"
     ) -> ChatMember:
         existing = await self.get_member(chat_id, user_id)
-        if existing and existing.left_at is None:
+        if existing:
+            if existing.left_at is None:
+                return existing
+            existing.left_at = None
+            existing.role = role
+            existing.joined_at = datetime.now(timezone.utc)
+            await self.session.commit()
+            await self.session.refresh(existing)
             return existing
         member = ChatMember(chat_id=chat_id, user_id=user_id, role=role)
         self.session.add(member)
@@ -90,12 +108,19 @@ class ChatRepository:
         await self.session.refresh(member)
         return member
 
-    async def get_member(self, chat_id: int, user_id: int) -> Optional[ChatMember]:
-        stmt = select(ChatMember).where(
-            ChatMember.chat_id == chat_id, ChatMember.user_id == user_id
+    async def get_org_event_chats(self, organization_id: int) -> List[Chat]:
+        """Активные групповые чаты организации (только EVENT).
+
+        Личные ORGANIZER-чаты сознательно исключены: приватная переписка
+        волонтёра с владельцем не должна становиться групповой (этап 6).
+        """
+        stmt = select(Chat).where(
+            Chat.chat_type == ChatTypeEnum.EVENT,
+            Chat.organization_id == organization_id,
+            Chat.is_active,
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        return list(result.scalars().all())
 
     async def get_chat_members(self, chat_id: int) -> List[ChatMember]:
         stmt = select(ChatMember).where(

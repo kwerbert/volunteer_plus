@@ -2,7 +2,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -541,6 +541,328 @@ class TestStage5ChatRecipients:
                 user_id=1, title="t", body="b", notification_type=NotificationType(t)
             )
             assert req.notification_type.value == t
+
+
+class TestStage6OrganizerSync:
+    """Этап 6: организаторы — участники EVENT-чатов, синхронизация состава."""
+
+    @staticmethod
+    def _db_with_chat(chat):
+        db = MagicMock()
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = chat
+        db.execute = AsyncMock(return_value=result)
+        return db
+
+    @pytest.mark.asyncio
+    async def test_038_ensure_event_chat_adds_all_organizers(self):
+        from app.services.chat_service.core import chat_lifecycle
+
+        db = self._db_with_chat(SimpleNamespace(id=10))
+        with (
+            patch(
+                "app.services.chat_service.core.chat_lifecycle.ChatRepository"
+            ) as repo_cls,
+            patch(
+                "app.services.chat_service.core.chat_lifecycle.organization_client"
+            ) as org,
+        ):
+            repo = repo_cls.return_value
+            repo.get_member = AsyncMock(return_value=None)
+            repo.add_member = AsyncMock()
+            org.get_organizer_ids = AsyncMock(return_value=[2, 5])
+
+            chat_id = await chat_lifecycle.ensure_event_chat(
+                db=db, event_id=9, user_id=1, organization_id=7
+            )
+
+        assert chat_id == 10
+        org.get_organizer_ids.assert_awaited_once_with(7)
+        calls = repo.add_member.call_args_list
+        assert call(10, 1, role="member") in calls
+        assert call(10, 2, role="organizer") in calls
+        assert call(10, 5, role="organizer") in calls
+        assert repo.add_member.await_count == 3
+
+    @pytest.mark.asyncio
+    async def test_039_ensure_event_chat_creates_chat_with_org(self):
+        from app.services.chat_service.core import chat_lifecycle
+        from app.services.chat_service.db.models import ChatTypeEnum
+
+        db = self._db_with_chat(None)
+        with (
+            patch(
+                "app.services.chat_service.core.chat_lifecycle.ChatRepository"
+            ) as repo_cls,
+            patch(
+                "app.services.chat_service.core.chat_lifecycle.organization_client"
+            ) as org,
+        ):
+            repo = repo_cls.return_value
+            repo.create_chat = AsyncMock(return_value=SimpleNamespace(id=11))
+            repo.get_member = AsyncMock(return_value=None)
+            repo.add_member = AsyncMock()
+            org.get_organizer_ids = AsyncMock(return_value=[2])
+
+            chat_id = await chat_lifecycle.ensure_event_chat(
+                db=db, event_id=9, user_id=1, organization_id=7
+            )
+
+        assert chat_id == 11
+        kwargs = repo.create_chat.call_args.kwargs
+        assert kwargs["chat_type"] == ChatTypeEnum.EVENT
+        assert kwargs["event_id"] == 9
+        assert kwargs["organization_id"] == 7
+
+    @pytest.mark.asyncio
+    async def test_040_organizer_self_registration_gets_organizer_role(self):
+        from app.services.chat_service.core import chat_lifecycle
+
+        db = self._db_with_chat(SimpleNamespace(id=10))
+        with (
+            patch(
+                "app.services.chat_service.core.chat_lifecycle.ChatRepository"
+            ) as repo_cls,
+            patch(
+                "app.services.chat_service.core.chat_lifecycle.organization_client"
+            ) as org,
+        ):
+            repo = repo_cls.return_value
+            repo.get_member = AsyncMock(return_value=None)
+            repo.add_member = AsyncMock()
+            org.get_organizer_ids = AsyncMock(return_value=[2, 5])
+
+            await chat_lifecycle.ensure_event_chat(
+                db=db, event_id=9, user_id=2, organization_id=7
+            )
+
+        calls = repo.add_member.call_args_list
+        assert repo.add_member.await_count == 2  # без дубля для user_id=2
+        assert all(c.kwargs["role"] == "organizer" for c in calls)
+        assert {c.args[1] for c in calls} == {2, 5}
+
+    @pytest.mark.asyncio
+    async def test_041_org_service_outage_keeps_volunteer_in_chat(self):
+        """organization_service лёг → клиент вернул [] → регистрация жива."""
+        from app.services.chat_service.core import chat_lifecycle
+
+        db = self._db_with_chat(SimpleNamespace(id=10))
+        with (
+            patch(
+                "app.services.chat_service.core.chat_lifecycle.ChatRepository"
+            ) as repo_cls,
+            patch(
+                "app.services.chat_service.core.chat_lifecycle.organization_client"
+            ) as org,
+        ):
+            repo = repo_cls.return_value
+            repo.get_member = AsyncMock(return_value=None)
+            repo.add_member = AsyncMock()
+            org.get_organizer_ids = AsyncMock(return_value=[])
+
+            chat_id = await chat_lifecycle.ensure_event_chat(
+                db=db, event_id=9, user_id=1, organization_id=7
+            )
+
+        assert chat_id == 10
+        repo.add_member.assert_awaited_once_with(10, 1, role="member")
+
+    @pytest.mark.asyncio
+    async def test_042_add_sync_dedup_and_role_upgrade(self):
+        from app.services.chat_service.core import chat_lifecycle
+
+        chats = [SimpleNamespace(id=1), SimpleNamespace(id=2), SimpleNamespace(id=3)]
+        members = {
+            1: SimpleNamespace(user_id=5, left_at=None, role="member"),
+            2: SimpleNamespace(user_id=5, left_at=None, role="organizer"),
+            3: None,
+        }
+        with patch(
+            "app.services.chat_service.core.chat_lifecycle.ChatRepository"
+        ) as repo_cls:
+            repo = repo_cls.return_value
+            repo.get_org_event_chats = AsyncMock(return_value=chats)
+            repo.get_member = AsyncMock(side_effect=lambda cid, uid: members[cid])
+            repo.update_member_role = AsyncMock()
+            repo.add_member = AsyncMock()
+
+            updated = await chat_lifecycle.add_organizer_to_org_chats(
+                db=MagicMock(), organization_id=7, user_id=5
+            )
+
+        assert updated == 2  # чат 2 уже в порядке — не считается
+        repo.get_org_event_chats.assert_awaited_once_with(7)
+        repo.update_member_role.assert_awaited_once_with(1, 5, "organizer")
+        repo.add_member.assert_awaited_once_with(3, 5, role="organizer")
+
+    @pytest.mark.asyncio
+    async def test_043_remove_sync_only_active_memberships(self):
+        from app.services.chat_service.core import chat_lifecycle
+
+        chats = [SimpleNamespace(id=1), SimpleNamespace(id=2), SimpleNamespace(id=3)]
+        members = {
+            1: SimpleNamespace(user_id=5, left_at=None, role="organizer"),
+            2: SimpleNamespace(user_id=5, left_at=now_utc(), role="organizer"),
+            3: None,
+        }
+        with patch(
+            "app.services.chat_service.core.chat_lifecycle.ChatRepository"
+        ) as repo_cls:
+            repo = repo_cls.return_value
+            repo.get_org_event_chats = AsyncMock(return_value=chats)
+            repo.get_member = AsyncMock(side_effect=lambda cid, uid: members[cid])
+            repo.remove_member = AsyncMock()
+
+            removed = await chat_lifecycle.remove_organizer_from_org_chats(
+                db=MagicMock(), organization_id=7, user_id=5
+            )
+
+        assert removed == 1
+        repo.remove_member.assert_awaited_once_with(1, 5)
+
+
+class TestStage6Repository:
+    """Реальная SQLite: реактивация участника и фильтр чатов организации."""
+
+    @staticmethod
+    async def _make_repo():
+        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+        from sqlalchemy.pool import StaticPool
+
+        from app.services.chat_service.db.models import Base
+        from app.services.chat_service.db.repository import ChatRepository
+
+        engine = create_async_engine(
+            "sqlite+aiosqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        session = AsyncSession(engine, expire_on_commit=False)
+        return engine, session, ChatRepository(session)
+
+    @pytest.mark.asyncio
+    async def test_044_add_member_reactivates_after_removal(self):
+        from app.services.chat_service.db.models import ChatTypeEnum
+
+        engine, session, repo = await self._make_repo()
+        async with session:
+            chat = await repo.create_chat(
+                chat_type=ChatTypeEnum.EVENT, event_id=1, organization_id=7
+            )
+            first = await repo.add_member(chat.id, 5, role="organizer")
+            same = await repo.add_member(chat.id, 5, role="organizer")
+            assert same.id == first.id  # идемпотентность
+
+            await repo.remove_member(chat.id, 5)
+            assert not await repo.user_has_access_to_chat(chat.id, 5)
+
+            again = await repo.add_member(chat.id, 5, role="organizer")
+            assert again.id == first.id  # реактивация, не дубликат
+            assert again.left_at is None
+            assert await repo.user_has_access_to_chat(chat.id, 5)
+            # get_member не падает на MultipleResultsFound
+            assert (await repo.get_member(chat.id, 5)).id == first.id
+        await engine.dispose()
+
+    @pytest.mark.asyncio
+    async def test_045_get_org_event_chats_filters_type_and_active(self):
+        from app.services.chat_service.db.models import ChatTypeEnum
+
+        engine, session, repo = await self._make_repo()
+        async with session:
+            target = await repo.create_chat(
+                chat_type=ChatTypeEnum.EVENT, event_id=1, organization_id=7
+            )
+            inactive = await repo.create_chat(
+                chat_type=ChatTypeEnum.EVENT, event_id=2, organization_id=7
+            )
+            await repo.deactivate_chat(inactive.id)
+            await repo.create_chat(
+                chat_type=ChatTypeEnum.ORGANIZER, organization_id=7
+            )  # личный — не синхронизируем
+            await repo.create_chat(
+                chat_type=ChatTypeEnum.EVENT, event_id=3, organization_id=8
+            )  # чужая организация
+
+            chats = await repo.get_org_event_chats(7)
+            assert [c.id for c in chats] == [target.id]
+        await engine.dispose()
+
+
+class TestStage6InternalEndpoints:
+    @pytest.mark.asyncio
+    async def test_046_add_organizer_endpoint_contract(self):
+        from httpx import ASGITransport, AsyncClient
+
+        from app.services.chat_service.config import settings
+        from app.services.chat_service.db.session import get_db_session
+        from app.services.chat_service.main import app
+
+        app.dependency_overrides[get_db_session] = lambda: MagicMock()
+        try:
+            with patch(
+                "app.services.chat_service.api.internal_router.add_organizer_to_org_chats",
+                new=AsyncMock(return_value=2),
+            ) as sync:
+                transport = ASGITransport(app=app)
+                async with AsyncClient(
+                    transport=transport, base_url="http://test"
+                ) as ac:
+                    url = "/internal/organizations/7/add-organizer"
+                    body = {"user_id": 5}
+                    assert (await ac.post(url, json=body)).status_code == 401
+                    assert (
+                        await ac.post(
+                            url, json=body, headers={"X-Service-Key": "wrong"}
+                        )
+                    ).status_code == 403
+                    ok = await ac.post(
+                        url,
+                        json=body,
+                        headers={"X-Service-Key": settings.SERVICE_API_KEY},
+                    )
+                    assert ok.status_code == 200
+                    assert ok.json() == {
+                        "organization_id": 7,
+                        "user_id": 5,
+                        "chats_updated": 2,
+                    }
+                sync.assert_awaited_once()
+                assert sync.call_args.args[1:] == (7, 5)
+        finally:
+            app.dependency_overrides.clear()
+
+    @pytest.mark.asyncio
+    async def test_047_remove_organizer_endpoint_contract(self):
+        from httpx import ASGITransport, AsyncClient
+
+        from app.services.chat_service.config import settings
+        from app.services.chat_service.db.session import get_db_session
+        from app.services.chat_service.main import app
+
+        app.dependency_overrides[get_db_session] = lambda: MagicMock()
+        try:
+            with patch(
+                "app.services.chat_service.api.internal_router.remove_organizer_from_org_chats",
+                new=AsyncMock(return_value=1),
+            ) as sync:
+                transport = ASGITransport(app=app)
+                async with AsyncClient(
+                    transport=transport, base_url="http://test"
+                ) as ac:
+                    ok = await ac.post(
+                        "/internal/organizations/7/remove-organizer",
+                        json={"user_id": 5},
+                        headers={"X-Service-Key": settings.SERVICE_API_KEY},
+                    )
+                    assert ok.status_code == 200
+                    assert ok.json()["chats_updated"] == 1
+                sync.assert_awaited_once()
+                assert sync.call_args.args[1:] == (7, 5)
+        finally:
+            app.dependency_overrides.clear()
 
 
 if __name__ == "__main__":

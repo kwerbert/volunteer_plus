@@ -11,6 +11,7 @@ from app.utils.notifications_enums import NotificationType
 from .db.models import Organization, OrganizationOrganizer, OrgOrganizerRole
 from .db.organizer_repository import OrganizationOrganizerRepository
 from .schemas import CurrentUser, OrganizationCreate
+from .utils.chat_client import add_organizer_to_chats, remove_organizer_from_chats
 from .utils.event_client import cancel_organization_events
 from .utils.http_client import get_user_by_email
 from .utils.notification_client import NotificationServiceClient
@@ -189,7 +190,16 @@ class OrganizationService:
             )
         await self.db.refresh(membership)
         await self._notify_organizers_added(org_id, target_id, user_info)
-        # T0DO(этап 6): добавить нового организатора в существующие чаты организации.
+        # Этап 6.2: организатор добавляется во все EVENT-чаты организации.
+        # Побочный эффект: сбой chat_service не откатывает добавление.
+        try:
+            await add_organizer_to_chats(org_id, target_id)
+        except Exception:
+            logger.warning(
+                "Failed to sync chats for new organizer %s of org %s",
+                target_id,
+                org_id,
+            )
         logger.info(
             "User %s added as organizer of org %s by %s",
             target_id,
@@ -219,7 +229,15 @@ class OrganizationService:
             )
         await self.organizers.deactivate(membership)
         await self.db.commit()
-        # T0DO(этап 5): убрать организатора из чатов организации.
+        # Этап 6.3: убираем организатора из EVENT-чатов организации.
+        try:
+            await remove_organizer_from_chats(org_id, user_id)
+        except Exception:
+            logger.warning(
+                "Failed to remove organizer %s from chats of org %s",
+                user_id,
+                org_id,
+            )
         logger.info(
             "User %s removed from organizers of org %s by %s",
             user_id,
