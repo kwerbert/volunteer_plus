@@ -8,6 +8,7 @@ from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.event_service.config import settings
+from app.services.event_service.core.analytics_client import AnalyticsServiceClient
 from app.services.event_service.core.chat_client import ChatServiceClient
 from app.services.event_service.core.notification_client import (
     NotificationServiceClient,
@@ -31,6 +32,7 @@ from app.services.event_service.schemas import (
     EventRoleResponse,
     EventUpdate,
     OrganizationEventsCancelResponse,
+    ParticipationRoleInfoResponse,
     RegisterRequest,
 )
 from app.utils.notifications_enums import NotificationType, Priority
@@ -60,6 +62,7 @@ class EventService:
         self.org_client = OrganizationServiceClient()
         self.user_client = UserServiceClient()
         self.notification_client = NotificationServiceClient()
+        self.analytics_client = AnalyticsServiceClient()
 
     # === Права (этап 3.1 + 4.2) ===
     async def _require_org_organizer(self, org_id: int, user_id: int) -> None:
@@ -97,6 +100,7 @@ class EventService:
             event.status = EventStatus.COMPLETED.value
             await self.db.flush()
             logger.info("Event %s auto-completed (end_date passed)", event.id)
+            await self._credit_hours_for_completed([event])
             return True
         return False
 
@@ -112,16 +116,16 @@ class EventService:
         if org_ids:
             stmt = stmt.where(Event.org_id.in_(org_ids))
         events = list((await self.db.execute(stmt)).scalars().all())
-        count = 0
+        completed: List[Event] = []
         for event in events:
             if self._is_over(event):
                 event.status = EventStatus.COMPLETED.value
-                count += 1
-        if count:
+                completed.append(event)
+        if completed:
             await self.db.commit()
-            logger.info("Completed %s expired events", count)
-            # T0DO(этап 8): триггер аналитики по hours_value роли мероприятия.
-        return count
+            logger.info("Completed %s expired events", len(completed))
+            await self._credit_hours_for_completed(completed)
+        return len(completed)
 
     # === Чтение ===
     async def get_events(
@@ -144,16 +148,16 @@ class EventService:
             query = query.limit(limit)
 
         events = list((await self.db.execute(query)).scalars().all())
-        changed = False
+        completed_events: List[Event] = []
         for event in events:
             if event.status == EventStatus.ACTIVE.value and self._is_over(event):
                 event.status = EventStatus.COMPLETED.value
-                changed = True
-        if changed:
+                completed_events.append(event)
+        if completed_events:
             await self.db.flush()
+            await self._credit_hours_for_completed(completed_events)
         if status_filter is None:
             events = [e for e in events if e.status == EventStatus.ACTIVE.value]
-        # Список/лента: без ролей (роли — в детальном GET, этап 3.7)
         return [EventResponse.model_validate(e) for e in events]
 
     async def get_event_detail(self, event_id: int) -> Optional[EventResponse]:
@@ -451,6 +455,72 @@ class EventService:
             cancelled_participations=cancelled_participations,
             notified_volunteers=notified,
             completed_events=completed,
+        )
+
+    async def _credit_hours_for_completed(self, events: List[Event]) -> None:
+        """Триггер аналитики: при переходе active→completed начисляем часы
+        волонтёрам со статусом CHECKED_IN (отметка о посещении). Аналитика
+        сама возьмёт hours_value и name роли из event_roles (этап 8.1/8.2).
+        Побочный эффект: fire-and-forget, сбой analytics не роняет завершение.
+        Гард от задвоения — сам переход статуса (completed не завершается повторно)."""
+        if not settings.ANALYTICS_TRIGGER_ENABLED:
+            return
+        for event in events:
+            user_ids = await self._checked_in_user_ids(event.id)
+            if user_ids:
+                self.analytics_client.complete_background(event.id, user_ids)
+
+    async def _checked_in_user_ids(self, event_id: int) -> List[int]:
+        result = await self.db.execute(
+            select(Participation.user_id).where(
+                Participation.event_id == event_id,
+                Participation.status == ParticipationStatus.CHECKED_IN,
+            )
+        )
+        return sorted({row[0] for row in result.fetchall()})
+
+    async def get_participation_role_info(
+        self, event_id: int, user_id: int
+    ) -> Optional[ParticipationRoleInfoResponse]:
+        """Этап 8.1: регистрация + роль для analytics_service (internal API).
+        None — мероприятие/регистрация не найдены (роутер отдаст 404).
+        Роль удалена → role_name/hours_value = None → дефолт на стороне аналитики."""
+        event = await self.db.get(Event, event_id)
+        if not event:
+            return None
+        result = await self.db.execute(
+            select(Participation)
+            .where(
+                Participation.event_id == event_id,
+                Participation.user_id == user_id,
+                Participation.status != ParticipationStatus.CANCELLED,
+            )
+            .order_by(Participation.id.desc())
+        )
+        part = result.scalars().first()
+        if part is None:
+            return None
+
+        role_name: Optional[str] = None
+        hours_value: Optional[float] = None
+        if part.role_id is not None:
+            role = await self.db.get(EventRole, part.role_id)
+            if role is not None and role.event_id == event_id:
+                role_name = role.name
+                hours_value = role.hours_value
+
+        status_value = (
+            part.status.value
+            if isinstance(part.status, ParticipationStatus)
+            else str(part.status)
+        )
+        return ParticipationRoleInfoResponse(
+            event_id=event_id,
+            user_id=user_id,
+            status=status_value,
+            role_id=part.role_id,
+            role_name=role_name,
+            hours_value=hours_value,
         )
 
     # === Автоочистка отменённых (4.3) ===

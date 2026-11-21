@@ -1,10 +1,3 @@
-"""Внутренние эндпоинты Organization Service (X-Service-Key).
-
-Этап 3: event_service проверяет членство пользователя в organization_organizers,
-не пробрасывая пользовательский JWT и не ходя лишний раз в user_service.
-Единый источник правды — organization_organizers (см. ТЗ «НЕ ЗАБЫТЬ»).
-"""
-
 from typing import List
 
 from fastapi import APIRouter, Depends
@@ -33,3 +26,12 @@ async def list_organizers_internal(
 ):
     """Активные организаторы организации для других сервисов. 404 — орг не найдена."""
     return await service.list_organizers(org_id)
+
+
+@router.get("/users/{user_id}/organizations", response_model=List[int])
+async def list_user_organizations_internal(
+    user_id: int,
+    _: bool = Depends(verify_service_key),
+    service: OrganizationService = Depends(get_service),
+):
+    return await service.list_user_organization_ids(user_id)

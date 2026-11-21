@@ -150,3 +150,14 @@ class OrganizationEventsCancelResponse(BaseModel):
     cancelled_participations: int
     notified_volunteers: int
     completed_events: int = 0
+
+
+class ParticipationRoleInfoResponse(BaseModel):
+    event_id: int
+    user_id: int
+    status: str
+    role_id: Optional[int] = None
+    role_name: Optional[str] = None
+    hours_value: Optional[float] = None
+
+    model_config = ConfigDict(from_attributes=True)

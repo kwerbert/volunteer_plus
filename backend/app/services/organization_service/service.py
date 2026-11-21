@@ -112,6 +112,11 @@ class OrganizationService:
 
     # === Организаторы организации ===
 
+    async def list_user_organization_ids(self, user_id: int) -> List[int]:
+        """Этап 7.1: организации пользователя-организатора для feed_service.
+        Пустой список — не организатор / без организации (не 404)."""
+        return await self.organizers.get_active_organization_ids(user_id)
+
     async def list_organizers(self, org_id: int) -> List[OrganizationOrganizer]:
         await self._get_active_org_or_404(org_id)
         return await self.organizers.get_active_by_organization(org_id)

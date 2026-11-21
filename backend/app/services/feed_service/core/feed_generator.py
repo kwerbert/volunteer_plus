@@ -1,8 +1,3 @@
-"""
-Генератор персонализированной ленты.
-Исправлено: aiohttp.ClientSession внедряется через зависимости, нет утечек.
-"""
-
 import asyncio
 import logging
 from datetime import datetime
@@ -16,10 +11,10 @@ from ..api.schemas import (
     FeedResponse,
     FeedSection,
     FeedSectionType,
-    OrganizationPreview,
 )
 from ..config import Settings
 from ..db.repository import FeedRepository
+from .event_preview import build_event_preview, normalize_event_dates
 from .filter_engine import FilterEngine
 from .recommendation_engine import RecommendationEngine
 
@@ -46,31 +41,45 @@ class FeedGenerator:
     ) -> FeedResponse:
         logger.info(f"Starting feed generation for user_id={user_id}")
 
-        # Шаг 1: Получение данных о пользователе
+        # Шаг 1: Данные пользователя (role нужна для секции MY_EVENTS, этап 7)
         user_data = await self._get_user_data(user_id)
+        is_organizer = str(user_data.get("role") or "").lower() == "organizer"
         user_location = {
             "lat": filter_params.location_lat or user_data.get("location_lat"),
             "lon": filter_params.location_lon or user_data.get("location_lon"),
         }
 
-        # Шаг 2: Получение подписок пользователя
+        # Шаг 2: Подписки пользователя
         subscriptions = await self._get_user_subscriptions(user_id)
         subscribed_org_ids = [sub["org_id"] for sub in subscriptions]
         logger.info(f"User {user_id} has {len(subscribed_org_ids)} subscriptions")
 
-        # Шаг 3: Получение мероприятий + обогащение данными организаций
-        all_events = await self._fetch_and_enrich_events(
-            subscribed_org_ids=subscribed_org_ids,
-            filter_params=filter_params,
-            user_location=user_location,
+        # Шаг 2.5 (этап 7.1): организации, где пользователь — организатор.
+        # Источник правды — organization_organizers (organization_service).
+        my_org_ids = await self._get_my_org_ids(user_id) if is_organizer else []
+        if my_org_ids:
+            logger.info(
+                "User %s organizes %s orgs: %s", user_id, len(my_org_ids), my_org_ids
+            )
+
+        # Шаг 3: Мероприятия. Общие и «мои» — независимые запросы, параллельно.
+        all_events, my_events = await asyncio.gather(
+            self._fetch_and_enrich_events(
+                subscribed_org_ids=subscribed_org_ids,
+                filter_params=filter_params,
+                user_location=user_location,
+            ),
+            self._fetch_my_events(my_org_ids),
         )
 
-        # Шаг 4: Фильтрация
+        # Шаг 4: Фильтрация — только общая лента. «Мои мероприятия» —
+        # управленческая секция организатора, волонтёрские фильтры
+        # (радиус/категории/даты) к ней не применяются.
         filtered_events = self.filter_engine.filter_events(
             all_events, filter_params, user_location
         )
 
-        # Шаг 5: Формирование секций
+        # Шаг 5: Секции
         sections = await self._build_sections(
             events=filtered_events,
             subscribed_org_ids=subscribed_org_ids,
@@ -78,9 +87,11 @@ class FeedGenerator:
             user_id=user_id,
             filter_params=filter_params,
             user_location=user_location,
+            my_events=my_events,
+            my_org_ids=my_org_ids,
         )
 
-        # Шаг 6: Формирование ответа
+        # Шаг 6: Ответ
         total_events = sum(len(section.events) for section in sections)
         feed = FeedResponse(
             user_id=user_id,
@@ -90,14 +101,15 @@ class FeedGenerator:
             total_events=total_events,
             has_more=total_events >= filter_params.page_size,
         )
-
         logger.info(
             f"Feed generated: {total_events} events in {len(sections)} sections"
         )
         return feed
 
     async def _get_user_data(self, user_id: int) -> Dict[str, Any]:
-        """Получение данных о пользователе из User Service (service-to-service)."""
+        """Данные пользователя из User Service (service-to-service).
+        /users/{id}/profile отдаёт вложенную структуру {user, settings, location} —
+        нормализуем в плоский вид (этап 7: нужна role; заодно чиним геолокацию)."""
         try:
             async with self.http_session.get(
                 f"{self.settings.USER_SERVICE_URL}/api/v1/users/{user_id}/profile",
@@ -105,15 +117,45 @@ class FeedGenerator:
                 timeout=aiohttp.ClientTimeout(total=3),
             ) as response:
                 if response.status == 200:
-                    return await response.json()
+                    return self._normalize_user_data(await response.json(), user_id)
                 logger.warning(
                     f"User Service returned {response.status} for user {user_id}"
                 )
         except Exception as e:
             logger.warning(f"Error fetching user {user_id}: {e}")
+        return self._fallback_user_data(user_id)
 
+    def _normalize_user_data(
+        self, data: Dict[str, Any], user_id: int
+    ) -> Dict[str, Any]:
+        """Поддерживает вложенный (/profile) и плоский (/feed-profile) форматы."""
+        user = data.get("user") or data
+        location = data.get("location") or {}
+        settings = data.get("settings") or user.get("settings") or {}
+        lat = user.get("location_lat")
+        lon = user.get("location_lon")
+        if lat is None:
+            lat = location.get("latitude")
+        if lon is None:
+            lon = location.get("longitude")
+        return {
+            "id": user.get("id") or user.get("user_id") or user_id,
+            "role": str(user.get("role") or "volunteer").lower(),
+            "location_lat": lat,
+            "location_lon": lon,
+            "settings": settings
+            or {
+                "show_only_subscriptions": False,
+                "search_radius_km": self.settings.DEFAULT_SEARCH_RADIUS_KM,
+            },
+        }
+
+    def _fallback_user_data(self, user_id: int) -> Dict[str, Any]:
+        """User Service недоступен → обычный волонтёр без секции MY_EVENTS.
+        Лента должна работать и без него (graceful degradation)."""
         return {
             "id": user_id,
+            "role": "volunteer",
             "location_lat": None,
             "location_lon": None,
             "settings": {
@@ -126,7 +168,6 @@ class FeedGenerator:
         """Получение подписок пользователя из Subscription Service"""
         try:
             params = {"user_id": user_id, "active_only": "true"}
-            # Используем внедрённую сессию
             async with self.http_session.get(
                 f"{self.settings.SUBSCRIPTION_SERVICE_URL}/api/v1/subscriptions",
                 params=params,
@@ -136,6 +177,60 @@ class FeedGenerator:
                     return await response.json()
         except Exception as e:
             logger.warning(f"Error fetching subscriptions: {e}")
+        return []
+
+    async def _get_my_org_ids(self, user_id: int) -> List[int]:
+        """Этап 7.1: организации, где пользователь — активный организатор.
+        Единый источник правды — organization_organizers (organization_service).
+        Сбой сервиса → [] → секции MY_EVENTS не будет, лента не падает."""
+        try:
+            async with self.http_session.get(
+                f"{self.settings.ORGANIZATION_SERVICE_URL}"
+                f"/internal/users/{user_id}/organizations",
+                headers={"X-Service-Key": self.settings.SERVICE_API_KEY},
+                timeout=aiohttp.ClientTimeout(total=3),
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return sorted({int(org_id) for org_id in data})
+                logger.warning(
+                    "Organization Service user-orgs/%s: HTTP %s",
+                    user_id,
+                    response.status,
+                )
+        except Exception as e:
+            logger.warning(f"Error fetching organizer orgs of user {user_id}: {e}")
+        return []
+
+    async def _fetch_my_events(self, my_org_ids: List[int]) -> List[Dict[str, Any]]:
+        """Этап 7.1: мероприятия своих организаций во ВСЕХ статусах
+        (active/cancelled/completed) — управленческая секция, не рекомендации."""
+        if not my_org_ids:
+            return []
+        try:
+            params = {
+                "org_ids": ",".join(map(str, my_org_ids)),
+                "status": "all",
+            }
+            async with self.http_session.get(
+                f"{self.settings.EVENT_SERVICE_URL}/api/v1/events",
+                params=params,
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    if isinstance(data, list):
+                        events = data
+                    elif isinstance(data, dict):
+                        events = data.get("events", [])
+                    else:
+                        events = []
+                    return await self._enrich_events_with_organization_data(events)
+                logger.warning(
+                    f"Event Service (my events) returned status {response.status}"
+                )
+        except Exception as e:
+            logger.error(f"Error fetching my events: {e}")
         return []
 
     async def _fetch_and_enrich_events(
@@ -159,11 +254,8 @@ class FeedGenerator:
                 "page_size": filter_params.page_size * 3,
             }
             if subscribed_org_ids:
-                params["org_ids"] = ",".join(
-                    map(str, subscribed_org_ids)
-                )  # было organization_ids
+                params["org_ids"] = ",".join(map(str, subscribed_org_ids))
 
-            # Используем внедрённую сессию
             async with self.http_session.get(
                 f"{self.settings.EVENT_SERVICE_URL}/api/v1/events",
                 params={k: v for k, v in params.items() if v is not None},
@@ -171,15 +263,12 @@ class FeedGenerator:
             ) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # Нормализация структуры ответа
                     if isinstance(data, list):
                         events = data
                     elif isinstance(data, dict):
                         events = data.get("events", [])
                     else:
                         events = []
-
-                    # Обогащение данными организаций + нормализация полей
                     enriched = await self._enrich_events_with_organization_data(events)
                     logger.info(f"Fetched {len(enriched)} enriched events")
                     return enriched
@@ -201,7 +290,6 @@ class FeedGenerator:
         if not events:
             return []
 
-        # Собираем уникальные org_id
         org_ids = list(
             set(
                 event.get("org_id") or event.get("organization_id")
@@ -212,34 +300,22 @@ class FeedGenerator:
         if not org_ids:
             return self._normalize_events(events)
 
-        # Параллельное получение данных организаций
         organizations = await self._fetch_organizations_batch(org_ids)
         org_map = {org["id"]: org for org in organizations}
 
-        # Обогащение каждого мероприятия
         enriched = []
         for event in events:
             org_id = event.get("org_id") or event.get("organization_id")
             org_data = org_map.get(org_id, {}) if org_id else {}
 
-            # Копируем event и добавляем нормализованные поля
-            enriched_event = event.copy()
-
-            if "start_date" in enriched_event and "start_time" not in enriched_event:
-                enriched_event["start_time"] = enriched_event["start_date"]
-            if "end_date" in enriched_event and "end_time" not in enriched_event:
-                enriched_event["end_time"] = enriched_event.get("end_date")
-
-            # Добавляем данные организации
+            enriched_event = normalize_event_dates(event)
             enriched_event["organization_id"] = org_id
             enriched_event["organization_name"] = org_data.get("name", "Организация")
             enriched_event["organization_logo"] = org_data.get("logo_url")
             enriched_event["organization_rating"] = org_data.get("rating", 0.0)
             enriched_event["organization_verified"] = org_data.get("is_verified", False)
             enriched_event["category_id"] = org_data.get("category_id")
-
             enriched.append(enriched_event)
-
         return enriched
 
     async def _fetch_organizations_batch(
@@ -257,7 +333,6 @@ class FeedGenerator:
 
         responses = await asyncio.gather(*tasks, return_exceptions=True)
         organizations = []
-
         for i, response in enumerate(responses):
             if isinstance(response, Exception):
                 logger.warning(f"Error fetching org {org_ids[i]}: {response}")
@@ -269,7 +344,6 @@ class FeedGenerator:
                     organizations.append(org_data)
                 else:
                     organizations.append(self._get_fallback_org(org_ids[i]))
-
         return organizations
 
     @staticmethod
@@ -287,15 +361,7 @@ class FeedGenerator:
     @staticmethod
     def _normalize_events(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Нормализация полей даты в событиях без обогащения."""
-        normalized = []
-        for event in events:
-            evt = event.copy()
-            if "start_date" in evt and "start_time" not in evt:
-                evt["start_time"] = evt["start_date"]
-            if "end_date" in evt and "end_time" not in evt:
-                evt["end_time"] = evt.get("end_date")
-            normalized.append(evt)
-        return normalized
+        return [normalize_event_dates(event) for event in events]
 
     async def _build_sections(
         self,
@@ -305,9 +371,31 @@ class FeedGenerator:
         user_id: int,
         filter_params: FeedFilterParams,
         user_location: Dict[str, Optional[float]],
+        my_events: Optional[List[Dict[str, Any]]] = None,
+        my_org_ids: Optional[List[int]] = None,
     ) -> List[FeedSection]:
         """Формирование секций ленты."""
-        sections = []
+        sections: List[FeedSection] = []
+        my_events = my_events or []
+        my_org_ids = my_org_ids or []
+
+        # Секция 0 (этап 7.1): «Мои мероприятия» — только для организатора.
+        # Не скрывается toggle «только подписки»: это свои мероприятия
+        # (управление), а не рекомендации. Статус — на каждой карточке,
+        # фронт группирует active/cancelled/completed сам.
+        if my_events:
+            ordered = self._sort_my_events(my_events)
+            sections.append(
+                FeedSection(
+                    section_type=FeedSectionType.MY_EVENTS,
+                    section_title="Мои мероприятия",
+                    events=[
+                        self._build_event_preview(event)
+                        for event in ordered[: filter_params.page_size]
+                    ],
+                    layout="vertical",
+                )
+            )
 
         # Секция 1: От ваших организаций
         subscribed_events = [
@@ -332,11 +420,14 @@ class FeedGenerator:
                 )
             )
 
-        # Секция 2: Рекомендации (если не только подписки)
+        # Секция 2: Рекомендации (если не только подписки).
+        # Этап 7.4: организатор тоже видит рекомендации — мероприятия ДРУГИХ
+        # организаций «для вдохновения». Свои орг исключаем: они в MY_EVENTS.
         if not filter_params.show_only_subscriptions:
+            exclude_org_ids = sorted(set(subscribed_org_ids) | set(my_org_ids))
             recommendations = await self.recommendation_engine.get_recommendations(
                 user_id=user_id,
-                exclude_org_ids=subscribed_org_ids,
+                exclude_org_ids=exclude_org_ids,
                 filter_params=filter_params,
                 user_location=user_location,
             )
@@ -353,58 +444,25 @@ class FeedGenerator:
         return sections
 
     @staticmethod
-    def _build_event_preview(event: Dict[str, Any]) -> EventPreview:
-        """
-        Построение EventPreview из словаря.
-        Безопасное получение полей с поддержкой обоих форматов дат.
-        """
-        # Получение времени начала: пробуем start_time, затем start_date
-        start_time_val = event.get("start_time") or event.get("start_date")
-        end_time_val = event.get("end_time") or event.get("end_date") or start_time_val
+    def _sort_my_events(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Этап 7.1 + вопрос пагинации: активные (ближайшие сверху) →
+        завершённые (свежие сверху) → отменённые (свежие сверху).
+        Даты — ISO-строки из JSON, строковая сортировка корректна."""
 
-        # Парсинг дат если они в строковом формате
-        if isinstance(start_time_val, str):
-            try:
-                start_time = datetime.fromisoformat(
-                    start_time_val.replace("Z", "+00:00")
-                )
-            except (ValueError, AttributeError):
-                start_time = datetime.now()
-        elif isinstance(start_time_val, datetime):
-            start_time = start_time_val
-        else:
-            start_time = datetime.now()
+        def start_key(e: Dict[str, Any]) -> str:
+            return e.get("start_time") or e.get("start_date") or ""
 
-        if isinstance(end_time_val, str):
-            try:
-                end_time = datetime.fromisoformat(end_time_val.replace("Z", "+00:00"))
-            except (ValueError, AttributeError):
-                end_time = start_time
-        elif isinstance(end_time_val, datetime):
-            end_time = end_time_val
-        else:
-            end_time = start_time
+        active = [e for e in events if (e.get("status") or "active") == "active"]
+        completed = [e for e in events if e.get("status") == "completed"]
+        cancelled = [e for e in events if e.get("status") == "cancelled"]
 
-        return EventPreview(
-            id=event.get("id", 0),
-            title=event.get("title", "Без названия"),
-            organization=OrganizationPreview(
-                id=event.get("organization_id", 0),
-                name=event.get("organization_name", "Организация"),
-                logo_url=event.get("organization_logo"),
-                rating=float(event.get("organization_rating", 0.0)),
-                verified=bool(event.get("organization_verified", False)),
-                category_id=event.get("category_id"),
-            ),
-            description_preview=(
-                event.get("description", "")[:100] if event.get("description") else None
-            ),
-            start_time=start_time,
-            end_time=end_time,
-            location_lat=event.get("location_lat"),
-            location_lon=event.get("location_lon"),
-            distance_km=event.get("distance_km"),
-            required_role_id=event.get("required_role_id"),
-            max_participants=event.get("max_participants"),
-            registered_count=event.get("registered_count", 0),
+        active.sort(key=start_key)
+        completed.sort(key=start_key, reverse=True)
+        cancelled.sort(
+            key=lambda e: e.get("cancelled_at") or start_key(e), reverse=True
         )
+        return active + completed + cancelled
+
+    @staticmethod
+    def _build_event_preview(event: Dict[str, Any]) -> EventPreview:
+        return build_event_preview(event)

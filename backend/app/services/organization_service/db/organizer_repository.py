@@ -9,7 +9,7 @@ from typing import List, Optional
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import OrganizationOrganizer, OrgOrganizerRole
+from .models import Organization, OrganizationOrganizer, OrgOrganizerRole
 
 
 class OrganizationOrganizerRepository:
@@ -109,3 +109,24 @@ class OrganizationOrganizerRepository:
         )
         result = await self.session.execute(stmt)
         return result.rowcount
+
+    async def get_active_organization_ids(self, user_id: int) -> List[int]:
+        """Организации, где пользователь — активный организатор (этап 7.1,
+        internal API для feed_service). Удалённые организации исключаем:
+        их мероприятия и так отменены, в «Моих мероприятиях» не показываем."""
+        stmt = (
+            select(OrganizationOrganizer.organization_id)
+            .join(
+                Organization,
+                Organization.id == OrganizationOrganizer.organization_id,
+            )
+            .where(
+                OrganizationOrganizer.user_id == user_id,
+                OrganizationOrganizer.is_active,
+                Organization.is_active,
+            )
+            .order_by(OrganizationOrganizer.added_at.asc())
+        )
+        rows = (await self.session.execute(stmt)).scalars().all()
+        # dict.fromkeys — уникальные id с сохранением порядка добавления
+        return list(dict.fromkeys(rows))

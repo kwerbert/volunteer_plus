@@ -39,6 +39,13 @@ class Settings(BaseSettings):
         default="http://localhost:8006",
         description="URL notification-сервиса (этап 4.5)",
     )
+    ANALYTICS_SERVICE_URL: str = Field(
+        default="http://localhost:8005",
+        description="URL analytics-сервиса (учёт часов при завершении, этап 8)",
+    )
+    # Триггер учёта часов при active→completed. Выключается в тестах:
+    # EVENT_ANALYTICS_TRIGGER_ENABLED=false
+    ANALYTICS_TRIGGER_ENABLED: bool = True
 
     # === Этап 4: жизненный цикл ===
     CANCELLED_RETENTION_DAYS: int = 30  # 4.3: физическое удаление через 30 дней

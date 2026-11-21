@@ -33,11 +33,12 @@ class AnalyticsRepository:
             )
             result = await self.session.execute(stmt)
             existing = result.scalar_one_or_none()
+
             if existing:
                 existing.hours_worked += hours
                 existing.events_completed += events
                 existing.last_activity = datetime.now(timezone.utc)
-                if org_name:
+                if org_name and not existing.organization_name_snapshot:
                     existing.organization_name_snapshot = org_name
             else:
                 new_stats = VolunteerStats(
@@ -51,27 +52,25 @@ class AnalyticsRepository:
                 )
                 self.session.add(new_stats)
                 existing = new_stats
+
             await self.session.commit()
             await self.session.refresh(existing)
             return existing
         else:
             # Если нет org_id – ничего не делаем или возвращаем заглушку
-            # Но по логике этот кейс не должен вызываться. Возвращаем пустой объект с user_id.
             dummy = VolunteerStats(user_id=user_id, hours_worked=0, events_completed=0)
             return dummy
 
     async def get_stats_by_organization(self, user_id: int) -> List[Dict[str, Any]]:
-        (
-            func.max(VolunteerStats.organization_name_snapshot).label(
-                "organization_name_snapshot"
-            ),
-        )
         stmt = (
             select(
                 VolunteerStats.organization_id,
                 func.sum(VolunteerStats.hours_worked).label("total_hours"),
                 func.sum(VolunteerStats.events_completed).label("total_events"),
                 VolunteerStats.role,
+                func.max(VolunteerStats.organization_name_snapshot).label(
+                    "organization_name_snapshot"
+                ),
             )
             .where(
                 VolunteerStats.user_id == user_id,
@@ -130,7 +129,6 @@ class AnalyticsRepository:
             )
             self.session.add(new_stats)
             existing_stats = new_stats
-
         await self.session.commit()
         await self.session.refresh(existing_stats)
         return existing_stats
@@ -162,7 +160,6 @@ class AnalyticsRepository:
             )
             self.session.add(new_role)
             existing_role = new_role
-
         await self.session.commit()
         await self.session.refresh(existing_role)
         return existing_role
