@@ -2,13 +2,19 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.event_service.api.deps import get_current_user_id
+from app.services.event_service.api.deps import (
+    get_current_user_id,
+    verify_service_key,
+)
 from app.services.event_service.db.session import get_db_session
 from app.services.event_service.schemas import (
     CheckInRequest,
+    EventCancelResponse,
+    EventCleanupResponse,
+    EventCompletionResponse,
     EventCreate,
     EventResponse,
     EventUpdate,
@@ -20,16 +26,29 @@ from app.services.event_service.service import EventService
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/events", tags=["Events"])
 
+_ALLOWED_STATUSES = {"active", "cancelled", "completed", "all"}
+
 
 @router.get("", response_model=List[EventResponse])
 async def get_events(
     org_ids: Optional[str] = Query(None, description="Comma-separated org IDs"),
     date_from: Optional[datetime] = Query(None),
+    status_filter: Optional[str] = Query(
+        None,
+        alias="status",
+        description="active | cancelled | completed | all (по умолчанию active)",
+    ),
     db: AsyncSession = Depends(get_db_session),
 ):
+    if status_filter is not None and status_filter not in _ALLOWED_STATUSES:
+        raise HTTPException(
+            status_code=400, detail=f"status must be one of {sorted(_ALLOWED_STATUSES)}"
+        )
     service = EventService(db)
     ids_list = [int(x) for x in org_ids.split(",")] if org_ids else None
-    return await service.get_events(org_ids=ids_list, date_from=date_from)
+    return await service.get_events(
+        org_ids=ids_list, date_from=date_from, status_filter=status_filter
+    )
 
 
 @router.post("", response_model=EventResponse)
@@ -72,6 +91,28 @@ async def get_popular_events(
     return {"events": [e.model_dump() for e in events]}
 
 
+# === Этап 4: крон-эндпоинты. Объявлены ДО /{event_id}, иначе путь перехватится ===
+@router.post("/cleanup", response_model=EventCleanupResponse)
+async def cleanup_cancelled_events(
+    retention_days: Optional[int] = Query(None, ge=0),
+    _: bool = Depends(verify_service_key),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """4.3: физическое удаление отменённых мероприятий старше 30 дней.
+    Завершённые (completed) не удаляются никогда."""
+    return await EventService(db).cleanup_cancelled_events(retention_days)
+
+
+@router.post("/complete-expired", response_model=EventCompletionResponse)
+async def complete_expired_events(
+    _: bool = Depends(verify_service_key),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """4.4: перевод мероприятий с прошедшим end_date в completed."""
+    count = await EventService(db).complete_expired_events()
+    return EventCompletionResponse(completed_events=count)
+
+
 @router.get("/{event_id}", response_model=EventResponse)
 async def get_event(event_id: int, db: AsyncSession = Depends(get_db_session)):
     """Детальная карточка: роли с часами, лимитами и registered_count (этап 3.7)."""
@@ -89,12 +130,22 @@ async def update_event(
     current_user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db_session),
 ):
-    """Редактирование. Только организатор организации (этап 3.1)."""
     service = EventService(db)
     try:
         return await service.update_event(event_id, data, current_user_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/{event_id}", response_model=EventCancelResponse)
+async def cancel_event(
+    event_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """4.2: мягкая отмена (status=cancelled). Организатор организации или админ.
+    Завершённое мероприятие отменить нельзя — 409."""
+    return await EventService(db).cancel_event(event_id, current_user_id)
 
 
 @router.post("/{event_id}/register", response_model=ParticipationResponse)
@@ -106,8 +157,14 @@ async def register_for_event(
         return await service.register_user(event_id, request)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except HTTPException as e:
-        raise e
+
+
+@router.delete("/{event_id}/register/{user_id}", response_model=ParticipationResponse)
+async def unregister_from_event(
+    event_id: int, user_id: int, db: AsyncSession = Depends(get_db_session)
+):
+    """Отмена регистрации волонтёром: место на роли освобождается."""
+    return await EventService(db).unregister_user(event_id, user_id)
 
 
 @router.post("/{event_id}/check-in", response_model=ParticipationResponse)

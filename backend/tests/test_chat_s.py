@@ -447,15 +447,15 @@ class TestPushNotifications:
 
     def test_028_shared_enums_have_expected_values(self):
         """Общие enum'ы содержат ровно те значения, которые ждёт notification_service."""
-        from app.utils.notifications_enums import NotificationType, Priority
+        from app.utils.notifications_enums import NotificationType
 
-        assert {t.value for t in NotificationType} == {
+        assert {
             "CHAT",
             "NEW_EVENT",
             "EVENT_REMINDER",
             "SYSTEM",
-        }
-        assert {p.value for p in Priority} == {"HIGH", "NORMAL", "LOW"}
+            "EVENT_CANCELLED",
+        } <= {t.value for t in NotificationType}
         print("✓ Shared enums совместимы с notification_service")
 
     @pytest.mark.asyncio

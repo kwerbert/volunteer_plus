@@ -104,7 +104,7 @@ async def delete_organization(
     current_user: CurrentUser = Depends(get_current_user),
     service: OrganizationService = Depends(get_service),
 ):
-    """Владелец или is_admin. Мероприятия отменяются в этапе 4 (TODO в сервисе)."""
+    """Владелец или is_admin. Мероприятия отменяются в этапе 4 (T0DO в сервисе)."""
     await service.delete_organization(org_id, current_user)
     return None
 

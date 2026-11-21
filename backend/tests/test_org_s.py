@@ -82,6 +82,39 @@ async def test_category(test_db):
     return category
 
 
+@pytest.fixture(scope="function", autouse=True)
+def event_client_mock():
+    """Удаление организации ходит в event_service (этап 4.6) — мокаем."""
+    with patch(
+        "app.services.organization_service.service.cancel_organization_events",
+        new=AsyncMock(
+            return_value={
+                "organization_id": 0,
+                "cancelled_events": 0,
+                "cancelled_participations": 0,
+                "notified_volunteers": 0,
+                "completed_events": 0,
+            }
+        ),
+    ) as m:
+        yield m
+
+
+@pytest.mark.asyncio
+async def test_delete_organization_cancels_events(client, event_client_mock):
+    org_id = await create_org(client)
+    assert (await client.delete(f"/api/v1/organizations/{org_id}")).status_code == 204
+    event_client_mock.assert_awaited_once_with(org_id)
+
+
+@pytest.mark.asyncio
+async def test_delete_forbidden_does_not_touch_events(client, event_client_mock):
+    org_id = await create_org(client)
+    login_as(OTHER_ORGANIZER)
+    assert (await client.delete(f"/api/v1/organizations/{org_id}")).status_code == 403
+    event_client_mock.assert_not_awaited()
+
+
 async def create_org(client, name: str = "Test Org") -> int:
     login_as(OWNER)
     resp = await client.post(

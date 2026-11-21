@@ -89,6 +89,10 @@ services:
       EVENT_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       EVENT_ORGANIZATION_SERVICE_URL: http://organization_service:8004
       EVENT_CHAT_SERVICE_URL: http://chat_service:8007
+      EVENT_USER_SERVICE_URL: http://user_service:8008
+      EVENT_NOTIFICATION_SERVICE_URL: http://notification_service:8006
+      EVENT_CANCELLED_RETENTION_DAYS: "30"
+      EVENT_MAINTENANCE_INTERVAL_SECONDS: "3600"
     ports: ["8003:8003"]
     depends_on:
       user_service: {condition: service_healthy}

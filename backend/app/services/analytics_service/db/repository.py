@@ -23,6 +23,7 @@ class AnalyticsRepository:
         events: int = 0,
         org_id: Optional[int] = None,
         role: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> VolunteerStats:
         if org_id is not None:
             stmt = select(VolunteerStats).where(
@@ -36,10 +37,13 @@ class AnalyticsRepository:
                 existing.hours_worked += hours
                 existing.events_completed += events
                 existing.last_activity = datetime.now(timezone.utc)
+                if org_name:
+                    existing.organization_name_snapshot = org_name
             else:
                 new_stats = VolunteerStats(
                     user_id=user_id,
                     organization_id=org_id,
+                    organization_name_snapshot=org_name,
                     role=role,
                     hours_worked=hours,
                     events_completed=events,
@@ -57,6 +61,11 @@ class AnalyticsRepository:
             return dummy
 
     async def get_stats_by_organization(self, user_id: int) -> List[Dict[str, Any]]:
+        (
+            func.max(VolunteerStats.organization_name_snapshot).label(
+                "organization_name_snapshot"
+            ),
+        )
         stmt = (
             select(
                 VolunteerStats.organization_id,
@@ -74,6 +83,7 @@ class AnalyticsRepository:
         rows = result.fetchall()
         return [
             {
+                "organization_name_snapshot": row.organization_name_snapshot,
                 "organization_id": row.organization_id,
                 "hours_worked": row.total_hours or 0.0,
                 "events_completed": row.total_events or 0,

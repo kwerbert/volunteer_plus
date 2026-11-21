@@ -1,12 +1,15 @@
+import asyncio
 import logging
-from contextlib import asynccontextmanager  # добавить
+from contextlib import asynccontextmanager, suppress
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.services.event_service.api.internal_router import router as internal_router
 from app.services.event_service.api.router import router
 from app.services.event_service.config import settings
+from app.services.event_service.core.lifecycle import maintenance_loop
 from app.services.event_service.db.session import engine, init_db
 
 logging.basicConfig(
@@ -16,13 +19,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ДОБАВИТЬ lifespan-менеджер
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.SERVICE_NAME} on port {settings.SERVICE_PORT}")
     await init_db()
     logger.info("Database tables checked/created")
+
+    maintenance_task = None
+    if settings.MAINTENANCE_ENABLED:
+        maintenance_task = asyncio.create_task(maintenance_loop())
+        logger.info(
+            "Event maintenance loop started (interval=%ss, retention=%s days)",
+            settings.MAINTENANCE_INTERVAL_SECONDS,
+            settings.CANCELLED_RETENTION_DAYS,
+        )
     yield
+    if maintenance_task is not None:
+        maintenance_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await maintenance_task
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
     await engine.dispose()
 
@@ -33,7 +48,6 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -41,10 +55,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 app.include_router(router)
-
-# УДАЛИТЬ @app.on_event("startup") и @app.on_event("shutdown")
+app.include_router(internal_router)
 
 
 @app.get("/")

@@ -22,6 +22,7 @@ class NotificationType(str, Enum):
     NEW_EVENT = "NEW_EVENT"
     EVENT_REMINDER = "EVENT_REMINDER"
     SYSTEM = "SYSTEM"
+    EVENT_CANCELLED = "EVENT_CANCELLED"
 
 
 class Priority(str, Enum):

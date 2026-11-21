@@ -75,8 +75,5 @@ class Participation(Base):
     status = Column(
         SQLEnum(ParticipationStatus), default=ParticipationStatus.REGISTERED
     )
-    registered_at = Column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc)
-    )
+    registered_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     checked_in_at = Column(DateTime, nullable=True)

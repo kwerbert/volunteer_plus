@@ -73,7 +73,9 @@ class AnalyticsService:
         # Получаем названия организаций из Organization Service
         organizations = []
         for org in org_data:
-            org_name = await self._get_organization_name(org["organization_id"])
+            org_name = org.get("organization_name_snapshot")
+            if not org_name:
+                org_name = await self._get_organization_name(org["organization_id"])
             organizations.append(
                 {
                     "organization_id": org["organization_id"],
@@ -140,14 +142,16 @@ class AnalyticsService:
 
         # Расчёт часов
         hours_worked = hours or self.settings.DEFAULT_EVENT_HOURS
+        org_id = event_info.get("org_id")
+        org_name = await self._get_organization_name(org_id) if org_id else None
 
-        # Обновляем общую статистику
         await self.repo.create_or_update_stats(
             user_id=user_id,
             hours=hours_worked,
             events=1,
-            org_id=event_info.get("org_id"),
+            org_id=org_id,
             role=role,
+            org_name=org_name,
         )
 
         # Обновляем месячную статистику

@@ -23,6 +23,7 @@ from app.services.analytics_service.db.models import (
 from app.services.chat_service.db.models import Chat, ChatMember, ChatTypeEnum, Message
 from app.services.event_service.db.models import (
     Event,
+    EventStatus,
     Participation,
     ParticipationStatus,
 )
@@ -332,6 +333,44 @@ async def seed_events(session: AsyncSession) -> None:
                 location="Детский дом №1",
                 max_participants=20,
                 qr_secret="qr_secret_3",
+            ),
+            Event(
+                id=4,
+                org_id=1,
+                title="Отменённый субботник (старый)",
+                description="Кандидат на автоочистку: отменён 31 день назад",
+                start_date=now + timedelta(days=2),
+                end_date=now + timedelta(days=2, hours=3),
+                location="Сквер",
+                max_participants=20,
+                qr_secret="qr_secret_4",
+                status=EventStatus.CANCELLED.value,
+                cancelled_at=now - timedelta(days=31),
+            ),
+            Event(
+                id=5,
+                org_id=1,
+                title="Отменённая лекция (свежая)",
+                description="Отменена 2 дня назад — очистке не подлежит",
+                start_date=now + timedelta(days=4),
+                end_date=now + timedelta(days=4, hours=2),
+                location="Библиотека",
+                max_participants=40,
+                qr_secret="qr_secret_5",
+                status=EventStatus.CANCELLED.value,
+                cancelled_at=now - timedelta(days=2),
+            ),
+            Event(
+                id=6,
+                org_id=2,
+                title="Прошедший мастер-класс",
+                description="Завершённое мероприятие — в статистике, не удаляется",
+                start_date=now - timedelta(days=10),
+                end_date=now - timedelta(days=10) + timedelta(hours=3),
+                location="Детский дом №1",
+                max_participants=15,
+                qr_secret="qr_secret_6",
+                status=EventStatus.COMPLETED.value,
             ),
         ]
     )

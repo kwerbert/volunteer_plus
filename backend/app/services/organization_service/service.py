@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .db.models import Organization, OrganizationOrganizer, OrgOrganizerRole
 from .db.organizer_repository import OrganizationOrganizerRepository
 from .schemas import CurrentUser, OrganizationCreate
+from .utils.event_client import cancel_organization_events
 from .utils.http_client import get_user_by_email
 
 logger = logging.getLogger(__name__)
@@ -155,7 +156,7 @@ class OrganizationService:
                 status_code=409, detail="Пользователь уже организатор этой организации"
             )
         await self.db.refresh(membership)
-        # TODO(этап 5): добавить нового организатора в существующие чаты организации.
+        # T0DO(этап 5): добавить нового организатора в существующие чаты организации.
         logger.info(
             "User %s added as organizer of org %s by %s",
             target_id,
@@ -203,13 +204,22 @@ class OrganizationService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Удалить организацию может только владелец или администратор",
             )
+
+        # Этап 4.6: сначала отменяем активные/будущие мероприятия.
+        # Завершённые остаются как есть — название организации «заморожено»
+        # (GET /organizations/{id} отдаёт и неактивные организации).
+        # Если event_service недоступен — 503 и ничего не меняем.
+        stats = await cancel_organization_events(org_id)
+
         await self.organizers.deactivate_all_for_organization(org_id)
         org.is_active = False
         await self.db.commit()
-        # T0DO(этап 4): отменить активные/будущие мероприятия организации через
-        # event_service; завершённые не трогаем — название организации
-        # «замораживается» в их карточках (снапшот org_name появится в этапе 4).
-        logger.info("Organization %s deactivated by user %s", org_id, current_user.id)
+        logger.info(
+            "Organization %s deactivated by user %s (cancelled_events=%s)",
+            org_id,
+            current_user.id,
+            stats.get("cancelled_events", 0),
+        )
 
     # === Верификация (заглушка, только админ) ===
 

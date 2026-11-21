@@ -31,6 +31,20 @@ class Settings(BaseSettings):
         default="http://localhost:8004",
         description="URL organization-сервиса (проверка прав, этап 3)",
     )
+    USER_SERVICE_URL: str = Field(
+        default="http://localhost:8008",
+        description="URL user-сервиса (проверка is_admin при отмене, этап 4.2)",
+    )
+    NOTIFICATION_SERVICE_URL: str = Field(
+        default="http://localhost:8006",
+        description="URL notification-сервиса (этап 4.5)",
+    )
+
+    # === Этап 4: жизненный цикл ===
+    CANCELLED_RETENTION_DAYS: int = 30  # 4.3: физическое удаление через 30 дней
+    MAINTENANCE_ENABLED: bool = True  # фоновая задача завершения/очистки
+    MAINTENANCE_INTERVAL_SECONDS: int = 3600
+    NOTIFICATION_TIMEOUT_SECONDS: float = 3.0
 
     # Дефолтная роль волонтёра, если организатор не задал роли (этап 3.3/3.6)
     DEFAULT_EVENT_HOURS: float = 4.0

@@ -1,17 +1,21 @@
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Tuple
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.event_service.config import settings
 from app.services.event_service.core.chat_client import ChatServiceClient
+from app.services.event_service.core.notification_client import (
+    NotificationServiceClient,
+)
 from app.services.event_service.core.organization_client import (
     OrganizationServiceClient,
 )
+from app.services.event_service.core.user_client import UserServiceClient
 from app.services.event_service.db.models import (
     Event,
     EventRole,
@@ -20,14 +24,33 @@ from app.services.event_service.db.models import (
     ParticipationStatus,
 )
 from app.services.event_service.schemas import (
+    EventCancelResponse,
+    EventCleanupResponse,
     EventCreate,
     EventResponse,
     EventRoleResponse,
     EventUpdate,
+    OrganizationEventsCancelResponse,
     RegisterRequest,
 )
+from app.utils.notifications_enums import NotificationType, Priority
 
 logger = logging.getLogger(__name__)
+
+
+def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
+    """SQLite отдаёт naive-datetime, даже если писали aware UTC."""
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _utcnow_naive() -> datetime:
+    """Параметры сравнения в SQL приводим к виду, в котором SQLite хранит даты
+    (UTC без смещения), иначе строковое сравнение дат врёт."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class EventService:
@@ -35,8 +58,10 @@ class EventService:
         self.db = db
         self.chat_client = ChatServiceClient()
         self.org_client = OrganizationServiceClient()
+        self.user_client = UserServiceClient()
+        self.notification_client = NotificationServiceClient()
 
-    # === Права (этап 3.1) ===
+    # === Права (этап 3.1 + 4.2) ===
     async def _require_org_organizer(self, org_id: int, user_id: int) -> None:
         if not await self.org_client.is_organizer(org_id, user_id):
             raise HTTPException(
@@ -44,28 +69,98 @@ class EventService:
                 detail="Только организатор организации может управлять мероприятиями",
             )
 
+    async def _require_event_manager(self, org_id: int, user_id: int) -> None:
+        """4.2: организатор организации ИЛИ is_admin."""
+        try:
+            if await self.org_client.is_organizer(org_id, user_id):
+                return
+        except HTTPException as e:
+            # Организация удалена/не найдена — админ всё равно должен иметь доступ.
+            if e.status_code != status.HTTP_404_NOT_FOUND:
+                raise
+        if await self.user_client.is_admin(user_id):
+            return
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Действие доступно организатору организации или администратору",
+        )
+
+    # === Жизненный цикл: завершение (4.4) ===
+    @staticmethod
+    def _is_over(event: Event) -> bool:
+        end = _as_utc(event.end_date) or _as_utc(event.start_date)
+        return end is not None and end <= datetime.now(timezone.utc)
+
+    async def _sync_completion(self, event: Event) -> bool:
+        """Ленивая проверка при запросе: active + end_date прошёл → completed."""
+        if event.status == EventStatus.ACTIVE.value and self._is_over(event):
+            event.status = EventStatus.COMPLETED.value
+            await self.db.flush()
+            logger.info("Event %s auto-completed (end_date passed)", event.id)
+            return True
+        return False
+
+    async def complete_expired_events(self, org_ids: Optional[List[int]] = None) -> int:
+        now_naive = _utcnow_naive()
+        stmt = select(Event).where(
+            Event.status == EventStatus.ACTIVE.value,
+            or_(
+                Event.end_date <= now_naive,
+                Event.end_date.is_(None) & (Event.start_date <= now_naive),
+            ),
+        )
+        if org_ids:
+            stmt = stmt.where(Event.org_id.in_(org_ids))
+        events = list((await self.db.execute(stmt)).scalars().all())
+        count = 0
+        for event in events:
+            if self._is_over(event):
+                event.status = EventStatus.COMPLETED.value
+                count += 1
+        if count:
+            await self.db.commit()
+            logger.info("Completed %s expired events", count)
+            # T0DO(этап 8): триггер аналитики по hours_value роли мероприятия.
+        return count
+
     # === Чтение ===
     async def get_events(
         self,
         org_ids: Optional[List[int]] = None,
         date_from: Optional[datetime] = None,
         limit: Optional[int] = None,
+        status_filter: Optional[str] = None,
     ) -> List[EventResponse]:
-        query = select(Event).where(Event.status == EventStatus.ACTIVE.value)
+        query = select(Event)
+        if status_filter is None:
+            query = query.where(Event.status == EventStatus.ACTIVE.value)
+        elif status_filter != "all":
+            query = query.where(Event.status == status_filter)
         if org_ids:
             query = query.where(Event.org_id.in_(org_ids))
         if date_from:
             query = query.where(Event.start_date >= date_from)
         if limit:
             query = query.limit(limit)
-        result = await self.db.execute(query)
+
+        events = list((await self.db.execute(query)).scalars().all())
+        changed = False
+        for event in events:
+            if event.status == EventStatus.ACTIVE.value and self._is_over(event):
+                event.status = EventStatus.COMPLETED.value
+                changed = True
+        if changed:
+            await self.db.flush()
+        if status_filter is None:
+            events = [e for e in events if e.status == EventStatus.ACTIVE.value]
         # Список/лента: без ролей (роли — в детальном GET, этап 3.7)
-        return [EventResponse.model_validate(e) for e in result.scalars().all()]
+        return [EventResponse.model_validate(e) for e in events]
 
     async def get_event_detail(self, event_id: int) -> Optional[EventResponse]:
         event = await self.db.get(Event, event_id)
         if not event:
             return None
+        await self._sync_completion(event)
         roles = await self._get_roles(event_id)
         counts = await self._role_registered_counts(event_id)
         return self._build_response(event, roles, counts)
@@ -109,15 +204,13 @@ class EventService:
         result = await self.db.execute(stmt)
         return [EventResponse.model_validate(e) for e in result.scalars().all()]
 
-    # === Создание (этап 3.1/3.3/3.4/3.6) ===
+    # === Создание (этап 3) ===
     async def create_event(
         self, event_data: EventCreate, current_user_id: int
     ) -> EventResponse:
         now = datetime.now(timezone.utc)
         if event_data.start_date.replace(tzinfo=timezone.utc) < now:
             raise ValueError("Нельзя создать мероприятие в прошлом")
-
-        # Право = членство в organization_organizers (403/404/503 из клиента)
         await self._require_org_organizer(event_data.org_id, current_user_id)
 
         has_custom_roles = bool(event_data.roles)
@@ -154,7 +247,6 @@ class EventService:
 
         await self.db.commit()
         await self.db.refresh(new_event)
-
         logger.info(
             "Event %s created by user %s (org %s, custom_roles=%s)",
             new_event.id,
@@ -165,7 +257,7 @@ class EventService:
         roles = await self._get_roles(new_event.id)
         return self._build_response(new_event, roles, {})
 
-    # === Редактирование (этап 3.1) ===
+    # === Редактирование ===
     async def update_event(
         self, event_id: int, data: EventUpdate, current_user_id: int
     ) -> EventResponse:
@@ -173,6 +265,7 @@ class EventService:
         if not event:
             raise HTTPException(status_code=404, detail="Мероприятие не найдено")
         await self._require_org_organizer(event.org_id, current_user_id)
+        await self._sync_completion(event)
         if event.status != EventStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -184,20 +277,181 @@ class EventService:
         logger.info("Event %s updated by user %s", event_id, current_user_id)
         return await self.get_event_detail(event_id)
 
-    # === Регистрация (этап 3.5 + лимит по роли) ===
+    # === Отмена мероприятия (4.2 / 4.5) ===
+    async def cancel_event(
+        self, event_id: int, current_user_id: int
+    ) -> EventCancelResponse:
+        event = await self.db.get(Event, event_id)
+        if not event:
+            raise HTTPException(status_code=404, detail="Мероприятие не найдено")
+        await self._require_event_manager(event.org_id, current_user_id)
+        await self._sync_completion(event)
+
+        if event.status == EventStatus.COMPLETED.value:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Завершённое мероприятие нельзя отменить или удалить",
+            )
+        if event.status == EventStatus.CANCELLED.value:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Мероприятие уже отменено",
+            )
+
+        recipients, cancelled_count = await self._cancel_event_record(event)
+        await self.db.commit()
+        logger.info(
+            "Event %s cancelled by user %s (participations=%s, notify=%s)",
+            event_id,
+            current_user_id,
+            cancelled_count,
+            len(recipients),
+        )
+        self._notify_event_cancelled(event, recipients)
+        return EventCancelResponse(
+            id=event.id,
+            status=event.status,
+            cancelled_at=_as_utc(event.cancelled_at),
+            cancelled_participations=cancelled_count,
+            notified_volunteers=len(recipients),
+        )
+
+    async def _cancel_event_record(self, event: Event) -> Tuple[List[int], int]:
+        """Мутация без commit: получатели собираются ДО отмены регистраций."""
+        recipients = await self._registered_user_ids(event.id)
+        result = await self.db.execute(
+            update(Participation)
+            .where(
+                Participation.event_id == event.id,
+                Participation.status == ParticipationStatus.REGISTERED,
+            )
+            .values(status=ParticipationStatus.CANCELLED)
+        )
+        event.status = EventStatus.CANCELLED.value
+        event.cancelled_at = datetime.now(timezone.utc)
+        return recipients, result.rowcount or 0
+
+    def _notify_event_cancelled(self, event: Event, recipients: List[int]) -> None:
+        """4.5: «Мероприятие "{название}" отменено» каждому зарегистрированному."""
+        if not recipients:
+            return
+        self.notification_client.notify_background(
+            user_ids=recipients,
+            title="Мероприятие отменено",
+            body=f'Мероприятие "{event.title}" отменено',
+            notification_type=NotificationType.EVENT_CANCELLED,
+            priority=Priority.HIGH,
+            data={"event_id": event.id, "org_id": event.org_id},
+        )
+        # T0DO(этап 5): уведомить организаторов организации об отмене.
+
+    # === Удаление организации → отмена её мероприятий (4.6) ===
+    async def cancel_organization_events(
+        self, org_id: int
+    ) -> OrganizationEventsCancelResponse:
+        # Просроченные сначала завершаем: завершённые отменять нельзя.
+        completed = await self.complete_expired_events(org_ids=[org_id])
+        result = await self.db.execute(
+            select(Event).where(
+                Event.org_id == org_id,
+                Event.status == EventStatus.ACTIVE.value,
+            )
+        )
+        events = list(result.scalars().all())
+        pending_notifications: List[Tuple[Event, List[int]]] = []
+        cancelled_participations = 0
+        notified = 0
+        for event in events:
+            recipients, count = await self._cancel_event_record(event)
+            cancelled_participations += count
+            notified += len(recipients)
+            pending_notifications.append((event, recipients))
+        await self.db.commit()
+        for event, recipients in pending_notifications:
+            self._notify_event_cancelled(event, recipients)
+        logger.info(
+            "Organization %s: cancelled %s events (%s participations), completed %s",
+            org_id,
+            len(events),
+            cancelled_participations,
+            completed,
+        )
+        return OrganizationEventsCancelResponse(
+            organization_id=org_id,
+            cancelled_events=len(events),
+            cancelled_participations=cancelled_participations,
+            notified_volunteers=notified,
+            completed_events=completed,
+        )
+
+    # === Автоочистка отменённых (4.3) ===
+    async def cleanup_cancelled_events(
+        self, retention_days: Optional[int] = None
+    ) -> EventCleanupResponse:
+        days = (
+            retention_days
+            if retention_days is not None
+            else settings.CANCELLED_RETENTION_DAYS
+        )
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        ids = [
+            row[0]
+            for row in (
+                await self.db.execute(
+                    select(Event.id).where(
+                        Event.status == EventStatus.CANCELLED.value,
+                        Event.cancelled_at.isnot(None),
+                        Event.cancelled_at <= cutoff.replace(tzinfo=None),
+                    )
+                )
+            ).fetchall()
+        ]
+        deleted_participations = deleted_roles = deleted_events = 0
+        if ids:
+            # Порядок важен: сначала дочерние записи, потом само мероприятие.
+            deleted_participations = (
+                await self.db.execute(
+                    delete(Participation).where(Participation.event_id.in_(ids))
+                )
+            ).rowcount or 0
+            deleted_roles = (
+                await self.db.execute(
+                    delete(EventRole).where(EventRole.event_id.in_(ids))
+                )
+            ).rowcount or 0
+            deleted_events = (
+                await self.db.execute(delete(Event).where(Event.id.in_(ids)))
+            ).rowcount or 0
+            await self.db.commit()
+            logger.info(
+                "Cleanup: deleted %s cancelled events (retention=%s days, ids=%s)",
+                deleted_events,
+                days,
+                ids,
+            )
+        # completed не удаляются никогда (4.3/4.4) — они в статистике.
+        return EventCleanupResponse(
+            deleted_events=deleted_events,
+            deleted_participations=deleted_participations,
+            deleted_roles=deleted_roles,
+            retention_days=days,
+            cutoff=cutoff,
+        )
+
+    # === Регистрация (4.1) ===
     async def register_user(
         self, event_id: int, data: RegisterRequest
     ) -> Participation:
         event = await self.db.get(Event, event_id)
         if not event:
             raise HTTPException(status_code=404, detail="Мероприятие не найдено")
+        await self._sync_completion(event)
         if event.status != EventStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Мероприятие недоступно для регистрации",
             )
 
-        # Общий лимит мероприятия
         count_res = await self.db.execute(
             select(func.count(Participation.id)).where(
                 Participation.event_id == event_id,
@@ -216,7 +470,7 @@ class EventService:
                 Participation.status != ParticipationStatus.CANCELLED,
             )
         )
-        if existing.scalar_one_or_none():
+        if existing.scalars().first():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Пользователь уже зарегистрирован",
@@ -224,27 +478,26 @@ class EventService:
 
         roles = await self._get_roles(event_id)
         if not roles:
-            # Защита для старых данных до этапа 3: дефолтная роль на лету
             role = self._add_default_role(event_id)
             await self.db.flush()
             roles = [role]
 
-        if data.role_id is not None:
-            role = next((r for r in roles if r.id == data.role_id), None)
+        role_id = data.event_role_id  # алиас role_id синхронизирован схемой
+        if role_id is not None:
+            role = next((r for r in roles if r.id == role_id), None)
             if role is None:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Роль не принадлежит этому мероприятию",
                 )
         else:
             if event.has_custom_roles:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Необходимо выбрать роль",
                 )
-            role = roles[0]  # одна дефолтная — подставляем автоматически
+            role = roles[0]
 
-        # Лимит по конкретной роли (этап 3, вопрос реализации) → 409
         if role.max_participants is not None:
             role_count = await self.db.execute(
                 select(func.count(Participation.id)).where(
@@ -279,31 +532,70 @@ class EventService:
             event_id,
             role.id,
         )
+        # T0DO(этап 5): NEW_REGISTRATION всем организаторам организации.
         return participation
 
-    # === Чекин (учитываем qr_check_enabled, этап 3.4) ===
+    async def unregister_user(self, event_id: int, user_id: int) -> Participation:
+        """Отмена регистрации волонтёром (освобождает место на роли)."""
+        event = await self.db.get(Event, event_id)
+        if not event:
+            raise HTTPException(status_code=404, detail="Мероприятие не найдено")
+        await self._sync_completion(event)
+        if event.status == EventStatus.COMPLETED.value:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Мероприятие уже завершено — регистрация в истории",
+            )
+        result = await self.db.execute(
+            select(Participation)
+            .where(
+                Participation.event_id == event_id,
+                Participation.user_id == user_id,
+                Participation.status != ParticipationStatus.CANCELLED,
+            )
+            .order_by(Participation.id.desc())
+        )
+        participation = result.scalars().first()
+        if participation is None:
+            raise HTTPException(status_code=404, detail="Регистрация не найдена")
+        if participation.status == ParticipationStatus.CHECKED_IN:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Нельзя отменить регистрацию после отметки о посещении",
+            )
+        participation.status = ParticipationStatus.CANCELLED
+        await self.db.commit()
+        await self.db.refresh(participation)
+        logger.info("User %s cancelled registration for event %s", user_id, event_id)
+        # T0DO(этап 5): REGISTRATION_CANCELLED всем организаторам организации.
+        return participation
+
+    # === Чекин ===
     async def check_in(
         self, event_id: int, user_id: int, qr_code: Optional[str]
     ) -> Participation:
         event = await self.db.get(Event, event_id)
         if not event:
             raise HTTPException(status_code=404, detail="Мероприятие не найдено")
+        if event.status == EventStatus.CANCELLED.value:
+            raise ValueError("Мероприятие отменено")
         if event.qr_check_enabled and event.qr_secret != qr_code:
             raise ValueError("Неверный QR-код")
 
-        participation = await self.db.execute(
-            select(Participation).where(
-                Participation.event_id == event_id, Participation.user_id == user_id
+        result = await self.db.execute(
+            select(Participation)
+            .where(
+                Participation.event_id == event_id,
+                Participation.user_id == user_id,
+                Participation.status != ParticipationStatus.CANCELLED,
             )
+            .order_by(Participation.id.desc())
         )
-        part = participation.scalar_one_or_none()
+        part = result.scalars().first()
         if not part:
             raise ValueError("Пользователь не зарегистрирован")
         if part.status == ParticipationStatus.CHECKED_IN:
             raise ValueError("Пользователь уже отметился")
-        if part.status == ParticipationStatus.CANCELLED:
-            raise ValueError("Регистрация отменена")
-
         part.status = ParticipationStatus.CHECKED_IN
         part.checked_in_at = datetime.now(timezone.utc)
         await self.db.commit()
@@ -328,6 +620,15 @@ class EventService:
             .order_by(EventRole.id)
         )
         return list(result.scalars().all())
+
+    async def _registered_user_ids(self, event_id: int) -> List[int]:
+        result = await self.db.execute(
+            select(Participation.user_id).where(
+                Participation.event_id == event_id,
+                Participation.status != ParticipationStatus.CANCELLED,
+            )
+        )
+        return sorted({row[0] for row in result.fetchall()})
 
     async def _role_registered_counts(self, event_id: int) -> Dict[int, int]:
         result = await self.db.execute(
