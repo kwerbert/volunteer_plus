@@ -1,7 +1,3 @@
-"""
-Тесты User Service (pytest версия)
-"""
-
 import os
 import sys
 from datetime import datetime, timezone
@@ -9,27 +5,15 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-# ============================================================================
-# КРИТИЧЕСКИ ВАЖНО: Настройка путей ДО любого импорта модулей проекта
-# ============================================================================
-# Добавляем корень проекта в sys.path (1 уровень вверх от файла теста)
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 
-# ============================================================================
-# ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ (чтобы не повторять код)
-# ============================================================================
 def now_utc() -> datetime:
     """Возвращает текущее время в UTC (timezone-aware)"""
     return datetime.now(timezone.utc)
-
-
-# ============================================================================
-# FIXTURES
-# ============================================================================
 
 
 @pytest.fixture
@@ -82,11 +66,6 @@ def clear_user_settings_cache():
         pass
 
 
-# ============================================================================
-# ТЕСТЫ КОНФИГУРАЦИИ
-# ============================================================================
-
-
 class TestConfig:
     """Тесты конфигурации сервиса"""
 
@@ -105,7 +84,7 @@ class TestConfig:
         assert settings.ACCESS_TOKEN_EXPIRE_MINUTES == 30
         assert settings.REFRESH_TOKEN_EXPIRE_DAYS == 7
         assert settings.SERVICE_API_KEY is not None
-        print("✓ Конфигурация загружена корректно")
+        print("Конфигурация загружена корректно")
 
     def test_002_config_cors_origins(self, clear_user_settings_cache):
         """Проверка парсинга CORS origins"""
@@ -116,12 +95,7 @@ class TestConfig:
         origins = settings.cors_origins_list
         assert isinstance(origins, list)
         assert len(origins) > 0
-        print("✓ CORS origins распарсены корректно")
-
-
-# ============================================================================
-# ТЕСТЫ СХЕМ (PYDANTIC V2)
-# ============================================================================
+        print("CORS origins распарсены корректно")
 
 
 class TestSchemas:
@@ -148,7 +122,7 @@ class TestSchemas:
         with pytest.raises(ValidationError):
             RegisterRequest(email="invalid-email", password="secure_password_123")
 
-        print("✓ Схема регистрации валидируется корректно")
+        print("Схема регистрации валидируется корректно")
 
     def test_004_location_request_schema(self):
         """Проверка схемы геолокации"""
@@ -166,7 +140,7 @@ class TestSchemas:
         with pytest.raises(ValidationError):
             LocationRequest(latitude=55.7558, longitude=200.0)
 
-        print("✓ Схема геолокации валидируется корректно")
+        print("Схема геолокации валидируется корректно")
 
     def test_005_settings_update_schema(self):
         """Проверка схемы обновления настроек"""
@@ -185,12 +159,7 @@ class TestSchemas:
         with pytest.raises(ValidationError):
             UserSettingsUpdateRequest(theme="blue")
 
-        print("✓ Схема настроек валидируется корректно")
-
-
-# ============================================================================
-# ТЕСТЫ SECURITY (PASSWORD & JWT)
-# ============================================================================
+        print("Схема настроек валидируется корректно")
 
 
 class TestSecurity:
@@ -212,7 +181,7 @@ class TestSecurity:
         assert verify_password(password, hashed) is True
         assert verify_password("wrong_password", hashed) is False
 
-        print("✓ Хеширование пароля работает корректно")
+        print("Хеширование пароля работает корректно")
 
     def test_007_jwt_token_creation_and_decode(self):
         """Проверка создания и декодирования JWT токенов"""
@@ -235,18 +204,11 @@ class TestSecurity:
         payload = decode_token(refresh_token, token_type="refresh")
         assert payload is not None
 
-        print("✓ JWT токены создаются и декодируются корректно")
-
-
-# ============================================================================
-# ТЕСТЫ AUTH SERVICE
-# ============================================================================
+        print("JWT токены создаются и декодируются корректно")
 
 
 @pytest.mark.asyncio
 class TestAuthService:
-    """Тесты сервиса аутентификации"""
-
     async def test_008_register_user(self, mock_user_repo):
         """Проверка регистрации пользователя"""
         from app.services.user_service.core.auth_service import AuthService
@@ -276,7 +238,7 @@ class TestAuthService:
         assert "access_token" in tokens
         assert "refresh_token" in tokens
 
-        print("✓ Регистрация пользователя работает корректно")
+        print("Регистрация пользователя работает корректно")
 
     async def test_009_login_user(self, mock_user_repo):
         """Проверка логина пользователя"""
@@ -304,7 +266,7 @@ class TestAuthService:
         assert user_data["email"] == "user@example.com"
         assert "access_token" in tokens
 
-        print("✓ Логин пользователя работает корректно")
+        print("Логин пользователя работает корректно")
 
     async def test_010_login_wrong_password(self, mock_user_repo):
         """Проверка логина с неверным паролем"""
@@ -329,7 +291,7 @@ class TestAuthService:
                 email="user@example.com", password="wrong_password"
             )
 
-        print("✓ Логин с неверным паролем отклоняется корректно")
+        print("Логин с неверным паролем отклоняется корректно")
 
     async def test_011_logout_revoke_token(self, mock_user_repo):
         """Проверка выхода (отзыв токена)"""
@@ -344,12 +306,7 @@ class TestAuthService:
 
         mock_user_repo.revoke_token.assert_called_once_with(token_hash)
 
-        print("✓ Выход (отзыв токена) работает корректно")
-
-
-# ============================================================================
-# ТЕСТЫ USER SERVICE
-# ============================================================================
+        print("Выход (отзыв токена) работает корректно")
 
 
 @pytest.mark.asyncio
@@ -405,7 +362,7 @@ class TestUserService:
         assert profile is not None
         assert profile["user"]["email"] == "user@example.com"
 
-        print("✓ Получение профиля пользователя работает корректно")
+        print("Получение профиля пользователя работает корректно")
 
     async def test_013_update_user_location(self, mock_user_repo, mock_session):
         """Проверка обновления геолокации"""
@@ -433,7 +390,7 @@ class TestUserService:
         assert location["latitude"] == 55.7558
         assert location["longitude"] == 37.6173
 
-        print("✓ Обновление геолокации работает корректно")
+        print("Обновление геолокации работает корректно")
 
     async def test_014_verify_user_exists(self, mock_user_repo):
         """Проверка existence пользователя (для service-to-service)"""
@@ -449,12 +406,7 @@ class TestUserService:
 
         assert exists is True
 
-        print("✓ Проверка существования пользователя работает корректно")
-
-
-# ============================================================================
-# ТЕСТЫ DEPENDENCIES (AUTH & SERVICE-KEY)
-# ============================================================================
+        print("Проверка существования пользователя работает корректно")
 
 
 @pytest.mark.asyncio
@@ -471,7 +423,7 @@ class TestDependencies:
             result = await verify_service_key(x_service_key="valid-service-key")
             assert result is True
 
-        print("✓ Валидный API ключ сервиса принимается")
+        print("Валидный API ключ сервиса принимается")
 
     async def test_016_verify_service_key_invalid(self):
         """Проверка невалидного API ключа сервиса"""
@@ -487,7 +439,7 @@ class TestDependencies:
 
             assert exc_info.value.status_code == 403
 
-        print("✓ Невалидный API ключ сервиса отклоняется")
+        print("Невалидный API ключ сервиса отклоняется")
 
     async def test_017_verify_service_key_missing(self):
         """Проверка отсутствующего API ключа сервиса"""
@@ -500,12 +452,7 @@ class TestDependencies:
 
         assert exc_info.value.status_code == 401
 
-        print("✓ Отсутствующий API ключ сервиса отклоняется")
-
-
-# ============================================================================
-# ТЕСТЫ FASTAPI ПРИЛОЖЕНИЯ
-# ============================================================================
+        print("Отсутствующий API ключ сервиса отклоняется")
 
 
 class TestMainApp:
@@ -519,7 +466,7 @@ class TestMainApp:
         assert app.title == "user_service"
         assert app.version == "1.0.0"
 
-        print("✓ FastAPI приложение создано корректно")
+        print("FastAPI приложение создано корректно")
 
     def test_019_app_routes(self, clear_user_settings_cache):
         """Проверка подключенных роутов (рекурсивно по вложенным роутерам)"""
@@ -540,7 +487,7 @@ class TestMainApp:
         assert "/health" in routes
         assert "/" in routes
 
-        print("✓ Все эндпоинты подключены корректно")
+        print("Все эндпоинты подключены корректно")
 
     def test_020_health_endpoint(self, clear_user_settings_cache):
         """Проверка health endpoint"""
@@ -550,7 +497,7 @@ class TestMainApp:
         routes = collect_route_paths(app)
         assert routes.count("/health") == 1
 
-        print("✓ Health endpoint доступен")
+        print("Health endpoint доступен")
 
     def test_021_organizer_application_routes(self, clear_user_settings_cache):
         """Проверка маршрутов заявок организатора"""
@@ -563,7 +510,7 @@ class TestMainApp:
         assert "/api/v1/organizer-applications/me" in routes
         assert "/api/v1/organizer-applications/{application_id}" in routes
 
-        print("✓ Эндпоинты заявок организатора подключены корректно")
+        print("Эндпоинты заявок организатора подключены корректно")
 
 
 class TestStage2InternalAPI:
@@ -607,10 +554,6 @@ class TestStage2InternalAPI:
         mock_user_repo.get_by_email.assert_awaited_once_with("org@example.com")
 
 
-# ============================================================================
-# ЗАПУСК ТЕСТОВ
-# ============================================================================
-
 if __name__ == "__main__":
     print("=" * 80)
     print("ЗАПУСК ТЕСТОВ USER SERVICE (pytest)")
@@ -620,5 +563,3 @@ if __name__ == "__main__":
     print(f"КОД ВЫХОДА: {exit_code}")
     print("=" * 80)
     sys.exit(exit_code)
-
-# pytest tests/test_user_s.py -v

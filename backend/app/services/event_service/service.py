@@ -308,6 +308,16 @@ class EventService:
             len(recipients),
         )
         self._notify_event_cancelled(event, recipients)
+        # Этап 5: организаторы тоже узнают об отмене (инициатору не шлём).
+        await self._notify_organizers(
+            org_id=event.org_id,
+            title="Мероприятие отменено",
+            body=f'Мероприятие "{event.title}" отменено',
+            notification_type=NotificationType.EVENT_CANCELLED,
+            priority=Priority.HIGH,
+            data={"event_id": event.id, "org_id": event.org_id},
+            exclude_user_id=current_user_id,
+        )
         return EventCancelResponse(
             id=event.id,
             status=event.status,
@@ -331,6 +341,55 @@ class EventService:
         event.cancelled_at = datetime.now(timezone.utc)
         return recipients, result.rowcount or 0
 
+    # === Уведомления организаторам (этап 5) ===
+
+    async def _organizer_ids(
+        self, org_id: int, exclude_user_id: Optional[int] = None
+    ) -> List[int]:
+        """Организаторы организации — получатели уведомлений.
+
+        Недоступность organization_service не должна ронять бизнес-операцию:
+        уведомление — побочный эффект, регистрация/отмена важнее.
+        """
+        try:
+            organizers = await self.org_client.get_organizers(org_id)
+        except Exception:
+            logger.warning(
+                "Cannot fetch organizers of org %s for notifications", org_id
+            )
+            return []
+        return sorted(
+            {
+                int(o["user_id"])
+                for o in organizers
+                if int(o["user_id"]) != exclude_user_id
+            }
+        )
+
+    async def _notify_organizers(
+        self,
+        org_id: int,
+        *,
+        title: str,
+        body: str,
+        notification_type: NotificationType,
+        data: Dict,
+        exclude_user_id: Optional[int] = None,
+        priority: Priority = Priority.NORMAL,
+    ) -> int:
+        recipients = await self._organizer_ids(org_id, exclude_user_id)
+        if not recipients:
+            return 0
+        self.notification_client.notify_background(
+            user_ids=recipients,
+            title=title,
+            body=body,
+            notification_type=notification_type,
+            priority=priority,
+            data=data,
+        )
+        return len(recipients)
+
     def _notify_event_cancelled(self, event: Event, recipients: List[int]) -> None:
         """4.5: «Мероприятие "{название}" отменено» каждому зарегистрированному."""
         if not recipients:
@@ -343,7 +402,6 @@ class EventService:
             priority=Priority.HIGH,
             data={"event_id": event.id, "org_id": event.org_id},
         )
-        # T0DO(этап 5): уведомить организаторов организации об отмене.
 
     # === Удаление организации → отмена её мероприятий (4.6) ===
     async def cancel_organization_events(
@@ -369,6 +427,17 @@ class EventService:
         await self.db.commit()
         for event, recipients in pending_notifications:
             self._notify_event_cancelled(event, recipients)
+
+        # Организаторам — одно агрегированное уведомление, а не N штук.
+        if events:
+            await self._notify_organizers(
+                org_id=org_id,
+                title="Мероприятия отменены",
+                body=f"Организация удалена: отменено мероприятий — {len(events)}",
+                notification_type=NotificationType.EVENT_CANCELLED,
+                priority=Priority.HIGH,
+                data={"org_id": org_id, "cancelled_events": len(events)},
+            )
         logger.info(
             "Organization %s: cancelled %s events (%s participations), completed %s",
             org_id,
@@ -532,7 +601,21 @@ class EventService:
             event_id,
             role.id,
         )
-        # T0DO(этап 5): NEW_REGISTRATION всем организаторам организации.
+        # Этап 5.2: NEW_REGISTRATION всем организаторам организации.
+        # Себе не шлём (организатор может зарегистрироваться сам).
+        await self._notify_organizers(
+            org_id=event.org_id,
+            title="Новая регистрация",
+            body=f'Волонтёр записался на "{event.title}" — роль «{role.name}»',
+            notification_type=NotificationType.NEW_REGISTRATION,
+            data={
+                "event_id": event.id,
+                "org_id": event.org_id,
+                "user_id": data.user_id,
+                "event_role_id": role.id,
+            },
+            exclude_user_id=data.user_id,
+        )
         return participation
 
     async def unregister_user(self, event_id: int, user_id: int) -> Participation:
@@ -567,7 +650,30 @@ class EventService:
         await self.db.commit()
         await self.db.refresh(participation)
         logger.info("User %s cancelled registration for event %s", user_id, event_id)
-        # T0DO(этап 5): REGISTRATION_CANCELLED всем организаторам организации.
+        # Этап 5.2: REGISTRATION_CANCELLED всем организаторам организации.
+        role_name = None
+        if participation.role_id:
+            roles = await self._get_roles(event_id)
+            role = next((r for r in roles if r.id == participation.role_id), None)
+            role_name = role.name if role else None
+
+        body = f'Волонтёр отменил регистрацию на "{event.title}"'
+        if role_name:
+            body += f" — роль «{role_name}»"
+
+        await self._notify_organizers(
+            org_id=event.org_id,
+            title="Отмена регистрации",
+            body=body,
+            notification_type=NotificationType.REGISTRATION_CANCELLED,
+            data={
+                "event_id": event.id,
+                "org_id": event.org_id,
+                "user_id": user_id,
+                "event_role_id": participation.role_id,
+            },
+            exclude_user_id=user_id,
+        )
         return participation
 
     # === Чекин ===

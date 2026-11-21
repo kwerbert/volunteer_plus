@@ -85,7 +85,22 @@ def chat_mock():
 
 
 @pytest.fixture(scope="function")
-async def client(test_db, org_mock, admin_mock, notify_mock):
+def organizers_mock():
+    """Организаторы org 1: владелец 2 (он же текущий юзер) + добавленный 5."""
+    with patch(
+        "app.services.event_service.service.OrganizationServiceClient.get_organizers",
+        new=AsyncMock(
+            return_value=[
+                {"user_id": 2, "role_in_org": "owner"},
+                {"user_id": 5, "role_in_org": "organizer"},
+            ]
+        ),
+    ) as m:
+        yield m
+
+
+@pytest.fixture(scope="function")
+async def client(test_db, org_mock, admin_mock, notify_mock, organizers_mock):
     async def override_get_db():
         yield test_db
 
@@ -271,6 +286,9 @@ async def test_cancel_event_soft_and_cancels_participations(
     await client.post(f"/api/v1/events/{event['id']}/register", json={"user_id": 1})
     await client.post(f"/api/v1/events/{event['id']}/register", json={"user_id": 7})
 
+    # Сбрасываем уведомления о регистрациях (NEW_REGISTRATION), чтобы проверить только уведомления об отмене (EVENT_CANCELLED).
+    notify_mock.reset_mock()
+
     resp = await client.delete(f"/api/v1/events/{event['id']}")
     assert resp.status_code == 200, resp.text
     data = resp.json()
@@ -293,11 +311,13 @@ async def test_cancel_event_soft_and_cancels_participations(
     )
     assert all(s == ParticipationStatus.CANCELLED for s in statuses)
 
-    notify_mock.assert_called_once()
-    kwargs = notify_mock.call_args.kwargs
-    assert kwargs["user_ids"] == [1, 7]
-    assert kwargs["notification_type"] == NotificationType.EVENT_CANCELLED
-    assert event["title"] in kwargs["body"]
+    assert notify_mock.call_count == 2  # волонтёрам + организаторам
+    volunteers = notify_mock.call_args_list[0].kwargs
+    assert volunteers["user_ids"] == [1, 7]
+    assert volunteers["notification_type"] == NotificationType.EVENT_CANCELLED
+    assert event["title"] in volunteers["body"]
+    organizers = notify_mock.call_args_list[1].kwargs
+    assert organizers["user_ids"] == [5]  # инициатор (2) исключён
 
 
 @pytest.mark.asyncio
@@ -477,3 +497,69 @@ async def test_internal_cancel_keeps_completed(client, test_db):
     assert data["completed_events"] == 1
     await test_db.refresh(obj)
     assert obj.status == EventStatus.COMPLETED.value
+
+
+# === Этап 5: уведомления организаторам ===
+
+
+@pytest.mark.asyncio
+async def test_register_notifies_organizers(client, notify_mock):
+    event = await _create(client)
+    assert (
+        await client.post(f"/api/v1/events/{event['id']}/register", json={"user_id": 1})
+    ).status_code == 200
+    notify_mock.assert_called_once()
+    kw = notify_mock.call_args.kwargs
+    assert kw["notification_type"] == NotificationType.NEW_REGISTRATION
+    assert kw["user_ids"] == [2, 5]
+    assert kw["data"]["event_id"] == event["id"]
+    assert kw["data"]["user_id"] == 1
+
+
+@pytest.mark.asyncio
+async def test_register_by_organizer_does_not_notify_self(client, notify_mock):
+    event = await _create(client)
+    await client.post(f"/api/v1/events/{event['id']}/register", json={"user_id": 2})
+    assert notify_mock.call_args.kwargs["user_ids"] == [5]
+
+
+@pytest.mark.asyncio
+async def test_unregister_notifies_organizers(client, notify_mock):
+    event = await _create(client)
+    await client.post(f"/api/v1/events/{event['id']}/register", json={"user_id": 1})
+    notify_mock.reset_mock()
+    assert (
+        await client.delete(f"/api/v1/events/{event['id']}/register/1")
+    ).status_code == 200
+    notify_mock.assert_called_once()
+    kw = notify_mock.call_args.kwargs
+    assert kw["notification_type"] == NotificationType.REGISTRATION_CANCELLED
+    assert kw["user_ids"] == [2, 5]
+
+
+@pytest.mark.asyncio
+async def test_registration_survives_org_service_outage(
+    client, notify_mock, organizers_mock
+):
+    organizers_mock.side_effect = HTTPException(status_code=503, detail="down")
+    event = await _create(client)
+    assert (
+        await client.post(f"/api/v1/events/{event['id']}/register", json={"user_id": 1})
+    ).status_code == 200
+    notify_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_org_deletion_aggregates_organizer_notification(client, notify_mock):
+    e1 = await _create(client, org_id=1, title="Event A")
+    await _create(client, org_id=1, title="Event B")
+    await client.post(f"/api/v1/events/{e1['id']}/register", json={"user_id": 1})
+    notify_mock.reset_mock()
+    resp = await client.post(
+        "/internal/organizations/1/cancel-events", headers=SERVICE_HEADERS
+    )
+    assert resp.status_code == 200
+    assert notify_mock.call_count == 2  # 1 волонтёру + 1 агрегированное
+    last = notify_mock.call_args_list[-1].kwargs
+    assert last["user_ids"] == [2, 5]
+    assert last["data"]["cancelled_events"] == 2

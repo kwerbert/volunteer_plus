@@ -1,10 +1,6 @@
-"""
-Тесты Organization Service (этап 2: организация ↔ организаторы).
-"""
-
 import os
 import sys
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -23,6 +19,7 @@ from app.services.organization_service.db.models import (
 from app.services.organization_service.db.session import get_db_session
 from app.services.organization_service.main import app
 from app.services.organization_service.schemas import CurrentUser
+from app.utils.notifications_enums import NotificationType
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_org.db"
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
@@ -396,3 +393,52 @@ async def test_owner_can_create_new_org_after_deletion(client):
     await client.delete(f"/api/v1/organizations/{org_id}")
     resp = await client.post("/api/v1/organizations", json={"name": "New Org"})
     assert resp.status_code == 201  # слот владельца освобождён partial-индексом
+
+
+@pytest.fixture(scope="function", autouse=True)
+def notify_mock():
+    with patch(
+        "app.services.organization_service.service."
+        "NotificationServiceClient.notify_background",
+        new=MagicMock(),
+    ) as m:
+        yield m
+
+
+@pytest.mark.asyncio
+async def test_add_organizer_notifies_existing_organizers(client, notify_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        resp = await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    assert resp.status_code == 201
+    notify_mock.assert_called_once()
+    kw = notify_mock.call_args.kwargs
+    assert kw["notification_type"] == NotificationType.NEW_ORGANIZER_ADDED
+    assert kw["user_ids"] == [OWNER.id]  # нового организатора не уведомляем
+    assert kw["data"] == {"org_id": org_id, "user_id": 5}
+
+
+@pytest.mark.asyncio
+async def test_duplicate_organizer_does_not_notify(client, notify_mock):
+    org_id = await create_org(client)
+    with patch(
+        "app.services.organization_service.service.get_user_by_email",
+        new=AsyncMock(return_value=user_info(5)),
+    ):
+        await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+        notify_mock.reset_mock()
+        dup = await client.post(
+            f"/api/v1/organizations/{org_id}/organizers",
+            json={"email": "u5@example.com"},
+        )
+    assert dup.status_code == 409
+    notify_mock.assert_not_called()

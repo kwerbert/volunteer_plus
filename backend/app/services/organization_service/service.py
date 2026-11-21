@@ -6,11 +6,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.utils.notifications_enums import NotificationType
+
 from .db.models import Organization, OrganizationOrganizer, OrgOrganizerRole
 from .db.organizer_repository import OrganizationOrganizerRepository
 from .schemas import CurrentUser, OrganizationCreate
 from .utils.event_client import cancel_organization_events
 from .utils.http_client import get_user_by_email
+from .utils.notification_client import NotificationServiceClient
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +22,7 @@ class OrganizationService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.organizers = OrganizationOrganizerRepository(db)
+        self.notifications = NotificationServiceClient()
 
     # === Создание ===
 
@@ -111,6 +115,34 @@ class OrganizationService:
         await self._get_active_org_or_404(org_id)
         return await self.organizers.get_active_by_organization(org_id)
 
+    async def _notify_organizers_added(
+        self, org_id: int, new_user_id: int, user_info: dict
+    ) -> None:
+        """5.4: NEW_ORGANIZER_ADDED всем действующим организаторам, кроме нового."""
+        try:
+            members = await self.organizers.get_active_by_organization(org_id)
+            recipients = sorted(
+                {m.user_id for m in members if m.user_id != new_user_id}
+            )
+            if not recipients:
+                return
+            org = await self.db.get(Organization, org_id)
+            org_name = org.name if org else f"#{org_id}"
+            who = (
+                user_info.get("full_name")
+                or user_info.get("email")
+                or f"#{new_user_id}"
+            )
+            self.notifications.notify_background(
+                user_ids=recipients,
+                title="Новый организатор",
+                body=f"{who} добавлен(а) в организацию «{org_name}»",
+                notification_type=NotificationType.NEW_ORGANIZER_ADDED,
+                data={"org_id": org_id, "user_id": new_user_id},
+            )
+        except Exception:
+            logger.warning("Failed to schedule NEW_ORGANIZER_ADDED for org %s", org_id)
+
     async def add_organizer(
         self, org_id: int, email: str, current_user: CurrentUser
     ) -> OrganizationOrganizer:
@@ -156,7 +188,8 @@ class OrganizationService:
                 status_code=409, detail="Пользователь уже организатор этой организации"
             )
         await self.db.refresh(membership)
-        # T0DO(этап 5): добавить нового организатора в существующие чаты организации.
+        await self._notify_organizers_added(org_id, target_id, user_info)
+        # T0DO(этап 6): добавить нового организатора в существующие чаты организации.
         logger.info(
             "User %s added as organizer of org %s by %s",
             target_id,

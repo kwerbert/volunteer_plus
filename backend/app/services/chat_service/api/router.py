@@ -27,6 +27,7 @@ from app.services.chat_service.api.schemas import (
 )
 from app.services.chat_service.config import settings
 from app.services.chat_service.core.connection_manager import manager
+from app.services.chat_service.core.organization_client import organization_client
 from app.services.chat_service.core.service import ChatService
 from app.services.chat_service.db.repository import ChatRepository
 from app.services.chat_service.db.session import get_db_session
@@ -420,39 +421,72 @@ async def _verify_event(event_id: int) -> bool:
     return False
 
 
+def _collect_message_recipients(
+    members: list, organizer_ids: List[int], sender_id: int
+) -> List[int]:
+    """Получатели push'а о новом сообщении (этап 5.3).
+
+    Участники чата + организаторы организации (в чат их добавит этап 6,
+    уведомлять нужно уже сейчас). Muted не получают push, отправитель
+    не получает уведомление о собственном сообщении.
+    """
+    muted = {m.user_id for m in members if m.is_muted}
+    recipients = {m.user_id for m in members if not m.is_muted}
+    recipients.update(uid for uid in organizer_ids if uid not in muted)
+    recipients.discard(sender_id)
+    return sorted(recipients)
+
+
+async def _prepare_message_notification(
+    chat_id: int, sender_id: int, message_content: str, db: AsyncSession
+) -> Optional[dict]:
+    """Собирает получателей и payload. Отдельно от.spawn — чтобы тестировать."""
+    repo = ChatRepository(db)
+    members = await repo.get_chat_members(chat_id)
+    chat = await repo.get_chat_by_id(chat_id)
+
+    organization_id = getattr(chat, "organization_id", None)
+    event_id = getattr(chat, "event_id", None)
+    chat_type = getattr(getattr(chat, "chat_type", None), "value", None)
+
+    organizer_ids: List[int] = []
+    # ORGANIZER-чат — личная переписка волонтёра с конкретным организатором:
+    # рассылать её всей организации нельзя. Fan-out только для чатов мероприятия.
+    if chat_type == ChatTypeEnum.EVENT.value and organization_id:
+        organizer_ids = await organization_client.get_organizer_ids(organization_id)
+
+    recipients = _collect_message_recipients(members, organizer_ids, sender_id)
+    if not recipients:
+        return None
+
+    preview = (
+        message_content[:100] + "..." if len(message_content) > 100 else message_content
+    )
+    extra_data = {}
+    if organization_id:
+        extra_data["org_id"] = organization_id
+    if event_id:
+        extra_data["event_id"] = event_id
+
+    return {
+        "chat_id": chat_id,
+        "sender_id": sender_id,
+        "preview": preview,
+        "recipients": recipients,
+        "extra_data": extra_data or None,
+    }
+
+
 async def _send_notification_to_participants(
     chat_id: int, sender_id: int, message_content: str, db: AsyncSession
 ):
-    """
-    Планирует отправку пуш-уведомлений участникам чата (fire-and-forget).
-    Синхронно (в вызывающей корутине) делается только чтение участников из БД,
-    а фактические HTTP-запросы уходят в фоновую задачу, которая владеет
-    своей aiohttp.ClientSession и гарантированно её закрывает.
-    """
+    """Планирует push участникам чата и организаторам (fire-and-forget)."""
     try:
-        repo = ChatRepository(db)
-        members = await repo.get_chat_members(chat_id)
-
-        preview = (
-            message_content[:100] + "..."
-            if len(message_content) > 100
-            else message_content
+        kwargs = await _prepare_message_notification(
+            chat_id, sender_id, message_content, db
         )
-
-        recipients = [
-            m.user_id for m in members if m.user_id != sender_id and not m.is_muted
-        ]
-        if not recipients:
-            return
-
-        _spawn_background(
-            _do_send_notifications(
-                chat_id=chat_id,
-                sender_id=sender_id,
-                preview=preview,
-                recipients=recipients,
-            )
-        )
+        if kwargs:
+            _spawn_background(_do_send_notifications(**kwargs))
     except Exception as e:
         logger.error(f"Error scheduling notifications for chat {chat_id}: {e}")
 
@@ -470,6 +504,7 @@ async def _do_send_notifications(
     sender_id: int,
     preview: str,
     recipients: list[int],
+    extra_data: Optional[dict] = None,
 ):
     """Фоновая отправка пушей. Владеет сессией и закрывает её сам."""
     try:
@@ -481,6 +516,7 @@ async def _do_send_notifications(
                     chat_id=chat_id,
                     sender_id=sender_id,
                     body=preview,
+                    extra_data=extra_data,
                 )
                 for user_id in recipients
             ]
@@ -497,6 +533,7 @@ async def _send_one_push_with_retry(
     chat_id: int,
     sender_id: int,
     body: str,
+    extra_data: Optional[dict] = None,
 ) -> None:
     """Один push с retry-политикой.
 
@@ -516,6 +553,7 @@ async def _send_one_push_with_retry(
             chat_id=chat_id,
             sender_id=sender_id,
             body=body,
+            extra_data=extra_data,
         )
 
         if last_status == "sent":
@@ -561,6 +599,7 @@ async def _send_one_push(
     chat_id: int,
     sender_id: int,
     body: str,
+    extra_data: Optional[dict] = None,
 ) -> tuple[str, int | None]:
     """Один HTTP-вызов в notification_service.
 
@@ -578,7 +617,11 @@ async def _send_one_push(
             body=body,
             notification_type=NotificationType.CHAT,
             priority=Priority.HIGH,
-            data={"chat_id": chat_id, "sender_id": sender_id},
+            data={
+                "chat_id": chat_id,
+                "sender_id": sender_id,
+                **(extra_data or {}),
+            },
         )
         async with session.post(
             f"{settings.NOTIFICATION_SERVICE_URL}/api/v1/notifications",

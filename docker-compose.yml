@@ -68,11 +68,13 @@ services:
       ORGANIZATION_DATABASE_URL: ${VOLUNTEER_DB_URL}
       ORGANIZATION_SERVICE_API_KEY: ${SERVICE_API_KEY}
       ORGANIZATION_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      ORGANIZATION_NOTIFICATION_SERVICE_URL: http://notification_service:8006
       ORGANIZATION_USER_SERVICE_URL: http://user_service:8008
       ORGANIZATION_EVENT_SERVICE_URL: http://event_service:8003
     ports: ["8004:8004"]
     depends_on:
       user_service: {condition: service_healthy}
+      notification_service: {condition: service_healthy}
     healthcheck:
       <<: *health
       test: ["CMD", "curl", "-fsS", "http://localhost:8004/health"]
