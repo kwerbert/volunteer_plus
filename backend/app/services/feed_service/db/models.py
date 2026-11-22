@@ -1,7 +1,6 @@
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, func
-from sqlalchemy.orm import declarative_base
 
-Base = declarative_base()
+from app.db.base import Base
 
 
 class FeedServiceLog(Base):
@@ -23,5 +22,5 @@ class FeedEventCache(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, index=True)
     event_id = Column(Integer, index=True)
-    cached_at = Column(DateTime, default=func.now())
-    expires_at = Column(DateTime, nullable=True)
+    cached_at = Column(DateTime(timezone=True), default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=True)

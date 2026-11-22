@@ -9,7 +9,7 @@ from app.services.notification_service.api.router import router
 from app.services.notification_service.api.schemas import HealthResponse
 from app.services.notification_service.config import settings
 from app.services.notification_service.core.websocket_manager import get_ws_manager
-from app.services.notification_service.db.session import engine, init_db
+from app.services.notification_service.db.session import engine
 
 # Логирование
 logging.basicConfig(
@@ -24,15 +24,9 @@ ws_manager = get_ws_manager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup/Shutdown события"""
-    # Startup: создаём таблицы
     logger.info("Starting Notification Service...")
-    await init_db()
-    logger.info("Database tables created/verified (notification enums migrated)")
-
+    # Миграции выполняются через Alembic (сервис `migrate` в docker-compose)
     yield
-
-    # Shutdown: закрываем соединения
     logger.info("Shutting down Notification Service...")
     await engine.dispose()
 

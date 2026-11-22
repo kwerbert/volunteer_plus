@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+_FEED_TEST_DB = "postgresql+asyncpg://volunteer:volunteer_secret_change_me@localhost:5432/volunteer_plus_test"
 
 
 class TestConfigAndSetup:
@@ -145,23 +146,19 @@ class TestCoreLogic:
 class TestAsyncRepository:
     async def test_004_async_repo_logging(self):
         """Проверка async-репозитория и статистики"""
+        from sqlalchemy import delete
         from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-        from sqlalchemy.pool import StaticPool
 
         from app.services.feed_service.config import settings
-        from app.services.feed_service.db.models import Base
+        from app.services.feed_service.db.models import Base, FeedServiceLog
         from app.services.feed_service.db.repository import FeedRepository
 
-        # In-memory async SQLite (StaticPool гарантирует одну БД в памяти)
-        engine = create_async_engine(
-            "sqlite+aiosqlite:///:memory:",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        engine = create_async_engine(_FEED_TEST_DB, echo=False, future=True)
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await conn.execute(delete(FeedServiceLog))  # чистая статистика
 
-        async with AsyncSession(engine) as session:
+        async with AsyncSession(engine, expire_on_commit=False) as session:
             repo = FeedRepository(session, settings)
             await repo.log_feed_generation(1, "req-1", 100, 10, True)
             await repo.log_feed_generation(2, "req-2", 200, 0, False, "Timeout")
@@ -171,3 +168,5 @@ class TestAsyncRepository:
             assert stats["avg_processing_time_ms"] == 150.0
             assert stats["cache_hit_rate_percent"] == 50.0
             assert stats["error_rate_percent"] == 50.0
+
+        await engine.dispose()

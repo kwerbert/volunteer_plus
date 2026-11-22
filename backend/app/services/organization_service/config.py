@@ -1,5 +1,4 @@
 from functools import lru_cache
-from pathlib import Path
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,38 +8,30 @@ class Settings(BaseSettings):
     SERVICE_NAME: str = "organization_service"
     SERVICE_PORT: int = 8004
     DEBUG: bool = True
-
-    _project_root: Path = Path(__file__).resolve().parents[3]
-    DATABASE_URL: str = f"sqlite+aiosqlite:///{_project_root}/volunteer_plus.db"
+    DATABASE_URL: str = "postgresql+asyncpg://volunteer:volunteer_secret_change_me@localhost:5432/volunteer_plus"
     LOG_LEVEL: str = "INFO"
-
     USER_SERVICE_URL: str = "http://localhost:8008"
     EVENT_SERVICE_URL: str = "http://localhost:8003"
-
     NOTIFICATION_SERVICE_URL: str = Field(
         default="http://localhost:8006",
         description="URL notification-сервиса",
     )
     NOTIFICATION_TIMEOUT_SECONDS: float = 3.0
-
     CHAT_SERVICE_URL: str = Field(
         default="http://localhost:8007",
         description="URL chat-сервиса (синхронизация чатов)",
     )
     CHAT_TIMEOUT_SECONDS: float = 5.0
-
     SERVICE_API_KEY: str = Field(
         default="dev-insecure-service-key-change-in-production",
         description="Service-to-service API key (env: ORGANIZATION_SERVICE_API_KEY)",
     )
-
     JWT_SECRET_KEY: str = Field(
         default="dev-insecure-secret-key-change-in-production",
         description="JWT secret key (env: ORGANIZATION_JWT_SECRET_KEY). "
         "Должен совпадать с USER_JWT_SECRET_KEY.",
     )
     JWT_ALGORITHM: str = "HS256"
-
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -63,18 +54,10 @@ class Settings(BaseSettings):
                 )
         return self
 
-    @property
-    def db_path(self) -> Path:
-        return Path(self.DATABASE_URL.replace("sqlite+aiosqlite:///", ""))
-
 
 @lru_cache()
 def get_settings() -> Settings:
-    settings = Settings()
-    db_path = Path(settings.DATABASE_URL.replace("sqlite+aiosqlite:///", ""))
-    if db_path.parent and not db_path.parent.exists():
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-    return settings
+    return Settings()
 
 
 settings = get_settings()

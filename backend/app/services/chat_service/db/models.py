@@ -12,9 +12,9 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import relationship
 
-Base = declarative_base()
+from app.db.base import Base
 
 
 class ChatTypeEnum(str, enum.Enum):
@@ -43,15 +43,17 @@ class Chat(Base):
     organization_id = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=True,
     )
-    scheduled_delete_at = Column(DateTime, nullable=True)
+    scheduled_delete_at = Column(DateTime(timezone=True), nullable=True)
     deletion_config = Column(JSON, nullable=True)
 
     messages = relationship(
@@ -74,9 +76,11 @@ class ChatMember(Base):
         String(50), default="member", nullable=False
     )  # member, admin, organizer
     joined_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
-    left_at = Column(DateTime, nullable=True)
+    left_at = Column(DateTime(timezone=True), nullable=True)
     is_muted = Column(Boolean, default=False, nullable=False)
 
     chat = relationship("Chat", back_populates="members")
@@ -103,12 +107,14 @@ class Message(Base):
     )
     attachment_url = Column(String(512), nullable=True)  # Для image/file
     is_read = Column(Boolean, default=False, nullable=False)
-    read_at = Column(DateTime, nullable=True)
+    read_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=True,

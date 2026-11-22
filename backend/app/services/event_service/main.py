@@ -10,7 +10,7 @@ from app.services.event_service.api.internal_router import router as internal_ro
 from app.services.event_service.api.router import router
 from app.services.event_service.config import settings
 from app.services.event_service.core.lifecycle import maintenance_loop
-from app.services.event_service.db.session import engine, init_db
+from app.services.event_service.db.session import engine
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -22,9 +22,6 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.SERVICE_NAME} on port {settings.SERVICE_PORT}")
-    await init_db()
-    logger.info("Database tables checked/created")
-
     maintenance_task = None
     if settings.MAINTENANCE_ENABLED:
         maintenance_task = asyncio.create_task(maintenance_loop())

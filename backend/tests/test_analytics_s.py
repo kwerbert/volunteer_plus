@@ -76,7 +76,7 @@ class TestConfig:
         assert settings.SERVICE_NAME == "analytics_service", (
             f"Имя сервиса неверное: {settings.SERVICE_NAME}"
         )
-        assert "sqlite+aiosqlite" in settings.DATABASE_URL, (
+        assert "postgresql+asyncpg" in settings.DATABASE_URL, (
             f"URL БД неверный: {settings.DATABASE_URL}"
         )
         print("Конфигурация загружена корректно")

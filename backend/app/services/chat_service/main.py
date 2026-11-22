@@ -1,5 +1,3 @@
-"""Точка входа Chat Service"""
-
 import logging
 from contextlib import asynccontextmanager
 
@@ -13,7 +11,7 @@ from app.services.chat_service.api.websocket_router import (
     websocket_endpoint as ws_endpoint,
 )
 from app.services.chat_service.config import settings
-from app.services.chat_service.db.session import engine, init_db
+from app.services.chat_service.db.session import engine
 
 # Настройка логирования
 logging.basicConfig(
@@ -25,18 +23,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager для startup/shutdown событий"""
-    # Startup
     logger.info(f"Starting {settings.SERVICE_NAME} on port {settings.SERVICE_PORT}")
     logger.info(f"Database: {settings.DATABASE_URL}")
     logger.info("Service-to-Service Auth: API Key (X-Service-Key)")
-
-    await init_db()
-    logger.info("Database tables checked/created")
-
     yield
-
-    # Shutdown
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
     await engine.dispose()
 

@@ -1,5 +1,4 @@
-"""Репозиторий связей «организация ↔ организаторы».
-"""
+"""Репозиторий связей «организация ↔ организаторы»."""
 
 from datetime import datetime, timezone
 from typing import List, Optional

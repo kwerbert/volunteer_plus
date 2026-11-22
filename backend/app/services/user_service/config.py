@@ -1,5 +1,4 @@
 from functools import lru_cache
-from pathlib import Path
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -10,8 +9,7 @@ class Settings(BaseSettings):
     SERVICE_PORT: int = 8008
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
-    _project_root: Path = Path(__file__).resolve().parents[3]
-    DATABASE_URL: str = f"sqlite+aiosqlite:///{_project_root}/users.db"
+    DATABASE_URL: str = "postgresql+asyncpg://volunteer:volunteer_secret_change_me@localhost:5432/volunteer_plus"
 
     # Ключи безопасности — загружаются из переменных окружения с USER_ префиксом
     # В production переменные должны быть установлены явно, fallback-значения только для DEV
@@ -55,22 +53,12 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [
-            origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()
-        ]
-
-    @property
-    def db_path(self) -> Path:
-        return Path(self.DATABASE_URL.replace("sqlite+aiosqlite:///", ""))
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
 
 @lru_cache()
 def get_settings() -> Settings:
-    settings = Settings()
-    db_path = Path(settings.DATABASE_URL.replace("sqlite+aiosqlite:///", ""))
-    if db_path.parent and not db_path.parent.exists():
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-    return settings
+    return Settings()
 
 
 settings = get_settings()
