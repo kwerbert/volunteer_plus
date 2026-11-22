@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.subscription_service.api.routes import router
 from app.services.subscription_service.config import settings
-from app.services.subscription_service.db.session import engine, init_db
+from app.services.subscription_service.db.session import engine
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -18,14 +18,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager для startup/shutdown событий"""
-    # Startup
-    logger.info(f"Starting {settings.SERVICE_NAME} on port {settings.SERVICE_PORT}")
-    await init_db()
-    logger.info("Database tables checked/created")
+    logger.info("Starting Subscription Service...")
+    # Миграции выполняются через Alembic (сервис `migrate` в docker-compose)
     yield
-    # Shutdown
-    logger.info(f"Shutting down {settings.SERVICE_NAME}")
+    logger.info("Shutting down Subscription Service...")
     await engine.dispose()
 
 

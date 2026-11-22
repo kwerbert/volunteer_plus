@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, call, patch
 import pytest
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
+_CHAT_TEST_DB = "postgresql+asyncpg://volunteer:volunteer_secret_change_me@localhost:5432/volunteer_plus_test"
 PROJECT_ROOT = os.path.abspath(os.path.join(TEST_DIR, ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -75,7 +76,7 @@ class TestConfig:
         settings = get_settings()
         assert settings.SERVICE_PORT == 8007
         assert settings.SERVICE_NAME == "chat_service"
-        assert "sqlite+aiosqlite" in settings.DATABASE_URL
+        assert "postgresql+asyncpg" in settings.DATABASE_URL
         assert settings.JWT_ALGORITHM == "HS256"
         assert settings.DEFAULT_PAGE_SIZE == 20
         print("Конфигурация загружена корректно")
@@ -722,22 +723,18 @@ class TestStage6OrganizerSync:
 
 
 class TestStage6Repository:
-    """Реальная SQLite: реактивация участника и фильтр чатов организации."""
+    """Реальная PostgreSQL: реактивация участника и фильтр чатов организации."""
 
     @staticmethod
     async def _make_repo():
         from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-        from sqlalchemy.pool import StaticPool
 
         from app.services.chat_service.db.models import Base
         from app.services.chat_service.db.repository import ChatRepository
 
-        engine = create_async_engine(
-            "sqlite+aiosqlite:///:memory:",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        engine = create_async_engine(_CHAT_TEST_DB, echo=False, future=True)
         async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
         session = AsyncSession(engine, expire_on_commit=False)
         return engine, session, ChatRepository(session)

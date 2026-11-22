@@ -47,14 +47,6 @@ def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
-
-
-def _utcnow_naive() -> datetime:
-    """Параметры сравнения в SQL приводим к виду, в котором SQLite хранит даты
-    (UTC без смещения), иначе строковое сравнение дат врёт."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
 class EventService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -105,12 +97,12 @@ class EventService:
         return False
 
     async def complete_expired_events(self, org_ids: Optional[List[int]] = None) -> int:
-        now_naive = _utcnow_naive()
+        now = datetime.now(timezone.utc)
         stmt = select(Event).where(
             Event.status == EventStatus.ACTIVE.value,
             or_(
-                Event.end_date <= now_naive,
-                Event.end_date.is_(None) & (Event.start_date <= now_naive),
+                Event.end_date <= now,
+                Event.end_date.is_(None) & (Event.start_date <= now),
             ),
         )
         if org_ids:
@@ -523,7 +515,7 @@ class EventService:
             hours_value=hours_value,
         )
 
-    # === Автоочистка отменённых (4.3) ===
+    # === Автоочистка отменённых ===
     async def cleanup_cancelled_events(
         self, retention_days: Optional[int] = None
     ) -> EventCleanupResponse:
@@ -540,7 +532,7 @@ class EventService:
                     select(Event.id).where(
                         Event.status == EventStatus.CANCELLED.value,
                         Event.cancelled_at.isnot(None),
-                        Event.cancelled_at <= cutoff.replace(tzinfo=None),
+                        Event.cancelled_at <= cutoff,
                     )
                 )
             ).fetchall()

@@ -26,7 +26,7 @@ from app.services.event_service.db.session import get_db_session
 from app.services.event_service.main import app
 from app.utils.notifications_enums import NotificationType
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_volunteer_plus.db"
+TEST_DATABASE_URL = "postgresql+asyncpg://volunteer:volunteer_secret_change_me@localhost:5432/volunteer_plus_test"
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
 session_factory = async_sessionmaker(
     test_engine, class_=AsyncSession, expire_on_commit=False

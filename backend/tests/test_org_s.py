@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -22,7 +22,7 @@ from app.services.organization_service.main import app
 from app.services.organization_service.schemas import CurrentUser
 from app.utils.notifications_enums import NotificationType
 
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test_org.db"
+TEST_DATABASE_URL = "postgresql+asyncpg://volunteer:volunteer_secret_change_me@localhost:5432/volunteer_plus_test"
 test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, future=True)
 session_factory = async_sessionmaker(
     test_engine, class_=AsyncSession, expire_on_commit=False
@@ -52,7 +52,6 @@ def user_info(user_id: int, role: str = "organizer", is_active: bool = True) -> 
 @pytest.fixture(scope="function")
 async def test_db():
     async with test_engine.begin() as conn:
-        await conn.execute(text("PRAGMA foreign_keys=ON"))
         await conn.run_sync(Base.metadata.create_all)
     async with session_factory() as session:
         yield session

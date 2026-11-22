@@ -1,16 +1,15 @@
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
+from app.db.base import Base
 from app.services.notification_service.config import (
     NotificationType,
     Platform,
     Priority,
     PushStatus,
 )
-
-Base = declarative_base()
 
 
 class NotificationToken(Base):

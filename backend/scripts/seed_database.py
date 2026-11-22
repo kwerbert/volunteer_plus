@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+import os
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -38,14 +39,13 @@ from app.services.user_service.db.models import (
     UserSettings,
 )
 
-VOLUNTEER_DB_URL = "sqlite+aiosqlite:///./volunteer_plus.db"
-USER_DB_URL = "sqlite+aiosqlite:///./users.db"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+asyncpg://volunteer:volunteer_secret_change_me@localhost:5432/volunteer_plus",
+)
 
-volunteer_engine = create_async_engine(VOLUNTEER_DB_URL, echo=False)
-user_engine = create_async_engine(USER_DB_URL, echo=False)
-
-user_session_maker = async_sessionmaker(user_engine, expire_on_commit=False)
-volunteer_session_maker = async_sessionmaker(volunteer_engine, expire_on_commit=False)
+engine = create_async_engine(DATABASE_URL, echo=False)
+session_maker = async_sessionmaker(engine, expire_on_commit=False)
 
 
 def now_utc() -> datetime:
@@ -53,32 +53,9 @@ def now_utc() -> datetime:
 
 
 async def seed_all() -> None:
-    """Основная функция наполнения БД."""
-    # 1. Таблицы users.db
-    async with user_engine.begin() as conn:
-        from app.services.user_service.db.models import Base as UserBase
-
-        await conn.run_sync(UserBase.metadata.create_all)
-
-    # 2. Таблицы volunteer_plus.db
-    async with volunteer_engine.begin() as conn:
-        from app.services.analytics_service.db.models import Base as AnalyticsBase
-        from app.services.chat_service.db.models import Base as ChatBase
-        from app.services.event_service.db.models import Base as EventBase
-        from app.services.organization_service.db.models import Base as OrgBase
-        from app.services.subscription_service.db.models import Base as SubBase
-
-        for base in (OrgBase, EventBase, SubBase, ChatBase, AnalyticsBase):
-            await conn.run_sync(base.metadata.create_all)
-
-    # 3. Данные users.db
-    async with user_session_maker() as session:
+    async with session_maker() as session:
         await seed_users(session)
         await seed_organizer_applications(session)
-        await session.commit()
-
-    # 4. Данные volunteer_plus.db
-    async with volunteer_session_maker() as session:
         await seed_categories(session)
         await seed_organizations(session)
         await seed_organization_organizers(session)
@@ -89,15 +66,16 @@ async def seed_all() -> None:
         await seed_chats(session)
         await seed_analytics(session)
         await session.commit()
+    print("База данных успешно наполнена тестовыми данными")
 
-    print("Базы данных успешно наполнены тестовыми данными")
+
+# Далее все функции seed_* без изменений
+# (копируются из исходного seed_database.py, но используют единую сессию вместо двух отдельных движков)
 
 
 async def seed_users(session: AsyncSession) -> None:
     password_hash = hash_password("password123")
-
     specs = [
-        # (id, email, full_name, role, is_admin)
         (1, "volunteer@example.com", "Иван Волонтёров", UserRoleEnum.VOLUNTEER, False),
         (
             2,
@@ -123,7 +101,6 @@ async def seed_users(session: AsyncSession) -> None:
             False,
         ),
     ]
-
     for user_id, email, full_name, role, is_admin in specs:
         existing = (
             await session.execute(select(User).where(User.email == email))
@@ -146,12 +123,10 @@ async def seed_users(session: AsyncSession) -> None:
             )
         )
         session.add(UserSettings(user_id=user_id))
-
     await session.flush()
 
 
 async def seed_organizer_applications(session: AsyncSession) -> None:
-    """Одобренная заявка (user 2) + отклонённая (user 1)."""
     now = now_utc()
     session.add_all(
         [
@@ -172,7 +147,6 @@ async def seed_organizer_applications(session: AsyncSession) -> None:
                 reviewed_at=now - timedelta(days=1),
                 rejection_reason="Недостаточно информации о деятельности",
             ),
-            # Заявка user 5 — одобрена (стал организатором, добавлен в орг 1)
             OrganizerApplication(
                 id=3,
                 user_id=5,
@@ -238,7 +212,6 @@ async def seed_organization_organizers(session: AsyncSession) -> None:
                 added_at=now_utc() - timedelta(days=5),
                 is_active=True,
             ),
-            # Добавленный организатор (не владелец)
             OrganizationOrganizer(
                 organization_id=1,
                 user_id=5,
@@ -264,7 +237,6 @@ async def seed_events(session: AsyncSession) -> None:
     now = now_utc()
     session.add_all(
         [
-            # Мероприятие с 3 кастомными ролями
             Event(
                 id=1,
                 org_id=1,
@@ -278,7 +250,6 @@ async def seed_events(session: AsyncSession) -> None:
                 has_custom_roles=True,
                 image_url="https://example.com/img/park.jpg",
             ),
-            # Мероприятие без ролей (дефолтная «Участник»)
             Event(
                 id=2,
                 org_id=1,
@@ -291,7 +262,6 @@ async def seed_events(session: AsyncSession) -> None:
                 qr_secret="qr_secret_2",
                 has_custom_roles=False,
             ),
-            # Мероприятие без ролей (дефолтная «Участник»)
             Event(
                 id=3,
                 org_id=2,
@@ -304,12 +274,11 @@ async def seed_events(session: AsyncSession) -> None:
                 qr_secret="qr_secret_3",
                 has_custom_roles=False,
             ),
-            # Отменённое > 30 дней назад → кандидат на автоочистку
             Event(
                 id=4,
                 org_id=1,
                 title="Отменённый субботник (старый)",
-                description="Кандидат на автоочистку: отменён 31 день назад",
+                description="Кандидат на автоочистку",
                 start_date=now + timedelta(days=2),
                 end_date=now + timedelta(days=2, hours=3),
                 location="Сквер",
@@ -318,7 +287,6 @@ async def seed_events(session: AsyncSession) -> None:
                 status=EventStatus.CANCELLED.value,
                 cancelled_at=now - timedelta(days=31),
             ),
-            # Отменённое недавно → очистке не подлежит
             Event(
                 id=5,
                 org_id=1,
@@ -332,7 +300,6 @@ async def seed_events(session: AsyncSession) -> None:
                 status=EventStatus.CANCELLED.value,
                 cancelled_at=now - timedelta(days=2),
             ),
-            # Завершённое → в статистике, не удаляется
             Event(
                 id=6,
                 org_id=2,
@@ -351,10 +318,8 @@ async def seed_events(session: AsyncSession) -> None:
 
 
 async def seed_event_roles(session: AsyncSession) -> None:
-    """3 кастомные роли для event 1 + дефолтные для event 2, 3."""
     session.add_all(
         [
-            # event 1 — кастомные роли (has_custom_roles=True)
             EventRole(
                 id=1,
                 event_id=1,
@@ -379,7 +344,6 @@ async def seed_event_roles(session: AsyncSession) -> None:
                 hours_value=3.0,
                 max_participants=None,
             ),
-            # event 2 — дефолтная роль
             EventRole(
                 id=4,
                 event_id=2,
@@ -387,7 +351,6 @@ async def seed_event_roles(session: AsyncSession) -> None:
                 hours_value=4.0,
                 max_participants=None,
             ),
-            # event 3 — дефолтная роль
             EventRole(
                 id=5,
                 event_id=3,
@@ -401,10 +364,8 @@ async def seed_event_roles(session: AsyncSession) -> None:
 
 
 async def seed_participations(session: AsyncSession) -> None:
-    """Волонтёры с регистрациями на разные роли."""
     session.add_all(
         [
-            # user 1 → event 1, роль «Уборка» (CHECKED_IN)
             Participation(
                 role_id=1,
                 event_id=1,
@@ -413,7 +374,6 @@ async def seed_participations(session: AsyncSession) -> None:
                 registered_at=now_utc() - timedelta(days=2),
                 checked_in_at=now_utc(),
             ),
-            # user 6 → event 1, роль «Координация» (REGISTERED)
             Participation(
                 role_id=2,
                 event_id=1,
@@ -421,9 +381,6 @@ async def seed_participations(session: AsyncSession) -> None:
                 status=ParticipationStatus.REGISTERED,
                 registered_at=now_utc() - timedelta(days=1),
             ),
-            # user 6 → event 1, роль «Посадка» — НЕЛЬЗЯ (один юзер = одна регистрация),
-            # поэтому user 6 на event 2
-            # user 6 → event 2, дефолтная роль
             Participation(
                 role_id=4,
                 event_id=2,
@@ -431,7 +388,6 @@ async def seed_participations(session: AsyncSession) -> None:
                 status=ParticipationStatus.REGISTERED,
                 registered_at=now_utc() - timedelta(hours=6),
             ),
-            # user 1 → event 2, дефолтная роль
             Participation(
                 role_id=4,
                 event_id=2,
@@ -439,7 +395,6 @@ async def seed_participations(session: AsyncSession) -> None:
                 status=ParticipationStatus.REGISTERED,
                 registered_at=now_utc() - timedelta(days=1),
             ),
-            # user 1 → event 3, дефолтная роль
             Participation(
                 role_id=5,
                 event_id=3,
@@ -484,7 +439,6 @@ async def seed_subscriptions(session: AsyncSession) -> None:
 async def seed_chats(session: AsyncSession) -> None:
     session.add_all(
         [
-            # Личный чат волонтёра с организатором
             Chat(
                 id=1,
                 chat_type=ChatTypeEnum.ORGANIZER,
@@ -492,7 +446,6 @@ async def seed_chats(session: AsyncSession) -> None:
                 is_active=True,
                 created_at=now_utc(),
             ),
-            # Чат мероприятия
             Chat(
                 id=2,
                 chat_type=ChatTypeEnum.EVENT,
@@ -502,14 +455,12 @@ async def seed_chats(session: AsyncSession) -> None:
                 is_active=True,
                 created_at=now_utc(),
             ),
-            # Участники
             ChatMember(chat_id=1, user_id=1, role="member", joined_at=now_utc()),
             ChatMember(chat_id=1, user_id=2, role="admin", joined_at=now_utc()),
             ChatMember(chat_id=2, user_id=1, role="member", joined_at=now_utc()),
             ChatMember(chat_id=2, user_id=2, role="organizer", joined_at=now_utc()),
             ChatMember(chat_id=2, user_id=5, role="organizer", joined_at=now_utc()),
             ChatMember(chat_id=2, user_id=6, role="member", joined_at=now_utc()),
-            # Сообщения
             Message(
                 chat_id=1,
                 sender_id=1,
@@ -568,13 +519,11 @@ async def seed_analytics(session: AsyncSession) -> None:
             ),
         ]
     )
-
-    months = []
     base = now_utc().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     for i in range(6):
         month_date = base - timedelta(days=30 * i)
         hours = 8.0 * (6 - i)
-        months.append(
+        session.add(
             MonthlyStats(
                 user_id=1,
                 year=month_date.year,
@@ -583,8 +532,6 @@ async def seed_analytics(session: AsyncSession) -> None:
                 events_completed=int(hours / 4),
             )
         )
-    session.add_all(months)
-
     session.add_all(
         [
             PreferredRole(user_id=1, role="Уборка", score=15.0, events_count=4),

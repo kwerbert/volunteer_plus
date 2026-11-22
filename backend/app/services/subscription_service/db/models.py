@@ -1,9 +1,8 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
-from sqlalchemy.orm import declarative_base
 
-Base = declarative_base()
+from app.db.base import Base
 
 
 class Subscription(Base):
@@ -13,9 +12,11 @@ class Subscription(Base):
     org_id = Column(Integer, nullable=False)
     role = Column(String(50), nullable=False, default="volunteer")
     active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
@@ -29,4 +30,6 @@ class SubscriptionLog(Base):
     action = Column(String(50), nullable=False)
     subscription_id = Column(Integer, nullable=True)
     details = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

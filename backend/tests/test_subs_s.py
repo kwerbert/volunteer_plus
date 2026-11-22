@@ -15,7 +15,6 @@ def mock_session():
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
     session.execute = AsyncMock()
-    # ИСПРАВЛЕНО: session.add() — синхронный метод, нужен MagicMock, не AsyncMock
     session.add = MagicMock()
     return session
 
@@ -53,8 +52,8 @@ class TestConfig:
 
         assert settings.SERVICE_PORT == 8002
         assert settings.SERVICE_NAME == "subscription_service"
-        assert settings.DATABASE_URL.endswith("volunteer_plus.db")
-        assert "sqlite+aiosqlite" in settings.DATABASE_URL
+        assert "volunteer_plus" in settings.DATABASE_URL
+        assert "postgresql+asyncpg" in settings.DATABASE_URL
 
     def test_002_config_singleton(self):
         """Проверка что settings кэшируется (singleton)"""

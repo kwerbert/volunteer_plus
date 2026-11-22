@@ -1,5 +1,3 @@
-"""Точка входа User Service"""
-
 import logging
 from contextlib import asynccontextmanager
 
@@ -11,20 +9,16 @@ from app.services.user_service.api.organizer_router import (
 )
 from app.services.user_service.api.router import router
 from app.services.user_service.config import get_settings
-from app.services.user_service.db.session import engine, init_db
+from app.services.user_service.db.session import engine
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """События запуска и остановки приложения"""
-    # Startup
     logger.info("Starting User Service...")
-    await init_db()
-    logger.info("Database initialized")
+    # Миграции выполняются через Alembic (сервис `migrate` в docker-compose)
     yield
-    # Shutdown
     logger.info("Shutting down User Service...")
     await engine.dispose()
 

@@ -1,5 +1,4 @@
 from functools import lru_cache
-from pathlib import Path
 from typing import Optional
 
 from pydantic import Field, model_validator
@@ -19,10 +18,7 @@ class Settings(BaseSettings):
     SERVICE_PORT: int = 8006
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
-    # Пути
-    _project_root: Path = Path(__file__).resolve().parents[3]
-    # Database
-    DATABASE_URL: str = f"sqlite+aiosqlite:///{_project_root}/volunteer_plus.db"
+    DATABASE_URL: str = "postgresql+asyncpg://volunteer:volunteer_secret_change_me@localhost:5432/volunteer_plus"
     # Firebase
     FIREBASE_CREDENTIALS_PATH: Optional[str] = Field(
         default=None,

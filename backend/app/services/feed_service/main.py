@@ -14,7 +14,7 @@ sys.path.insert(
 from app.services.feed_service.api.routes import router as api_router
 from app.services.feed_service.config import settings
 from app.services.feed_service.core.http_client import http_client_manager
-from app.services.feed_service.db.session import engine, init_db
+from app.services.feed_service.db.session import engine
 
 # Настройка логирования
 logging.basicConfig(
@@ -27,32 +27,14 @@ __version__ = "1.0.0"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Application lifespan: инициализация и очистка ресурсов.
-    Создаёт единый aiohttp.ClientSession для всех запросов.
-    """
-    # === Startup ===
     logger.info(f"Starting {settings.SERVICE_NAME} on port {settings.SERVICE_PORT}")
     logger.info(f"Database: {settings.DATABASE_URL}")
     logger.info(f"Cache enabled: {settings.CACHE_ENABLED}")
-
-    # Инициализация БД
-    await init_db()
-    logger.info("Database tables checked/created")
-
-    # Инициализация пула HTTP-сессий
     await http_client_manager.create_session()
     logger.info("HTTP connection pool initialized")
-
     yield
-
-    # === Shutdown ===
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
-
-    # Закрытие БД
     await engine.dispose()
-
-    # Закрытие HTTP-сессий (критично для предотвращения утечек!)
     await http_client_manager.close_session()
     logger.info("HTTP connection pool closed")
 

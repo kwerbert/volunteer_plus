@@ -79,7 +79,7 @@ class TestConfig:
             f"Порт должен быть 8008, получено {settings.SERVICE_PORT}"
         )
         assert settings.SERVICE_NAME == "user_service"
-        assert "sqlite+aiosqlite" in settings.DATABASE_URL
+        assert "postgresql+asyncpg" in settings.DATABASE_URL
         assert settings.JWT_ALGORITHM == "HS256"
         assert settings.ACCESS_TOKEN_EXPIRE_MINUTES == 30
         assert settings.REFRESH_TOKEN_EXPIRE_DAYS == 7
@@ -551,6 +551,7 @@ class TestStage2InternalAPI:
         assert user is not None and user.role == UserRoleEnum.ORGANIZER
         mock_user_repo.get_by_email.assert_awaited_once_with("org@example.com")
 
+
 from datetime import timedelta
 
 from httpx import ASGITransport, AsyncClient
@@ -578,7 +579,7 @@ from app.services.user_service.db.models import (
 )
 from app.services.user_service.main import app as user_app
 
-_USER_TEST_DB = "sqlite+aiosqlite:///./test_users_stage9.db"
+_USER_TEST_DB = "postgresql+asyncpg://volunteer:volunteer_secret_change_me@localhost:5432/volunteer_plus_test"
 _u_engine = create_async_engine(_USER_TEST_DB, echo=False, future=True)
 _u_factory = async_sessionmaker(_u_engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -731,6 +732,7 @@ class TestOrganizerApplications:
     async def test_030_get_my_latest_application(self, uclient, udb):
         """GET /me возвращает последнюю заявку."""
         await _mk_user(udb, 1, "vol@test.com")
+        await _mk_user(udb, 3, "admin@test.com", is_admin=True)
         await _mk_application(
             udb, 1, OrganizerApplicationStatus.REJECTED, reviewed_by=3
         )

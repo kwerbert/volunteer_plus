@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.services.analytics_service.api.router import router
 from app.services.analytics_service.config import settings
-from app.services.analytics_service.db.session import engine, init_db
+from app.services.analytics_service.db.session import engine
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -18,13 +18,8 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager для startup/shutdown событий"""
-    # Startup
     logger.info(f"Starting {settings.SERVICE_NAME} on port {settings.SERVICE_PORT}")
-    await init_db()
-    logger.info("Database tables checked/created")
     yield
-    # Shutdown
     logger.info(f"Shutting down {settings.SERVICE_NAME}")
     await engine.dispose()
 

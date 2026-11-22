@@ -14,9 +14,9 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import relationship
 
-Base = declarative_base()
+from app.db.base import Base
 
 
 class UserRoleEnum(str, enum.Enum):
@@ -41,9 +41,9 @@ class User(Base):
     is_verified = Column(Boolean, default=False, nullable=False)
     is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
-    last_login = Column(DateTime, nullable=True)
+    last_login = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     settings = relationship(
@@ -77,7 +77,7 @@ class UserSettings(Base):
     theme = Column(String(10), default="light", nullable=False)
     main_organization_id = Column(Integer, nullable=True)  # добавлено
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
@@ -95,7 +95,7 @@ class UserLocation(Base):
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     accuracy = Column(Float, nullable=True)
-    updated_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="location")
 
@@ -106,10 +106,10 @@ class RefreshToken(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     token_hash = Column(String(64), nullable=False, index=True)
-    expires_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
     revoked = Column(Boolean, default=False, nullable=False)
     created_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     user = relationship("User", back_populates="refresh_tokens")
@@ -143,19 +143,17 @@ class OrganizerApplication(Base):
     )
 
     created_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
     reviewed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    reviewed_at = Column(DateTime, nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
     rejection_reason = Column(Text, nullable=True)
 
     __table_args__ = (
-        # Не больше одной pending-заявки на пользователя — на уровне БД,
-        # чтобы гонка «два параллельных POST» не создала две заявки.
         Index(
             "uq_organizer_applications_pending",
             "user_id",
             unique=True,
-            sqlite_where=text("status = 'pending'"),
+            postgresql_where=text("status = 'pending'"),
         ),
     )

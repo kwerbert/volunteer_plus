@@ -14,9 +14,8 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy import Enum as SQLEnum
-from sqlalchemy.orm import declarative_base
 
-Base = declarative_base()
+from app.db.base import Base
 
 
 class Organization(Base):
@@ -33,7 +32,9 @@ class Organization(Base):
     owner_user_id = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
 
 
@@ -74,25 +75,24 @@ class OrganizationOrganizer(Base):
     )
     added_by = Column(Integer, nullable=True)  # кто добавил (аудит)
     added_at = Column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )
     is_active = Column(Boolean, default=True, nullable=False)
 
     __table_args__ = (
-        # Не больше одного активного членства (org, user) — на уровне БД,
-        # гонка двух параллельных POST не создаст дубликат.
         Index(
             "uq_organization_organizers_active",
             "organization_id",
             "user_id",
             unique=True,
-            sqlite_where=text("is_active = 1"),
+            postgresql_where=text("is_active = true"),
         ),
-        # Один аккаунт — максимум одна СВОЯ организация (активное владение).
         Index(
             "uq_organization_organizers_one_owner",
             "user_id",
             unique=True,
-            sqlite_where=text("role_in_org = 'owner' AND is_active = 1"),
+            postgresql_where=text("role_in_org = 'owner' AND is_active = true"),
         ),
     )

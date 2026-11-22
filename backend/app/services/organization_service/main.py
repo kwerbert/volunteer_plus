@@ -10,7 +10,7 @@ from app.services.organization_service.api.internal_router import (
 )
 from app.services.organization_service.api.router import router
 from app.services.organization_service.config import settings
-from app.services.organization_service.db.session import engine, init_db
+from app.services.organization_service.db.session import engine
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -19,16 +19,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# ДОБАВИТЬ lifespan-менеджер
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
-    logger.info(f"Starting {settings.SERVICE_NAME} on port {settings.SERVICE_PORT}")
-    await init_db()
-    logger.info("Database tables checked/created")
+    logger.info("Starting Organization Service...")
+    # Миграции выполняются через Alembic (сервис `migrate` в docker-compose)
     yield
-    # Shutdown
-    logger.info(f"Shutting down {settings.SERVICE_NAME}")
+    logger.info("Shutting down Organization Service...")
     await engine.dispose()
 
 
