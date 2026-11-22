@@ -1,29 +1,28 @@
+from functools import lru_cache
+from typing import Optional
+
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from functools import lru_cache
-from pathlib import Path
-from enum import Enum
-from typing import Optional
-from app.utils.notifications_enums import (
-    Platform,
+
+# Реэкспорт для тестов и других сервисов (см. app/utils/notifications_enums.py)
+from app.utils.notifications_enums import (  # noqa: F401
     NotificationType,
+    Platform,
     Priority,
     PushStatus,
 )
+
 
 class Settings(BaseSettings):
     SERVICE_NAME: str = "notification_service"
     SERVICE_PORT: int = 8006
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
-    # Пути
-    _project_root: Path = Path(__file__).resolve().parents[3]
-    # Database
-    DATABASE_URL: str = f"sqlite+aiosqlite:///{_project_root}/volunteer_plus.db"
+    DATABASE_URL: str = "postgresql+asyncpg://volunteer:volunteer_secret_change_me@localhost:5432/volunteer_plus"
     # Firebase
     FIREBASE_CREDENTIALS_PATH: Optional[str] = Field(
         default=None,
-        description="Path to Firebase service account JSON (env: NOTIFICATION_FIREBASE_CREDENTIALS_PATH)"
+        description="Path to Firebase service account JSON (env: NOTIFICATION_FIREBASE_CREDENTIALS_PATH)",
     )
     FIREBASE_PROJECT_ID: str = "volunteer-plus-cf4e5"
     # Сервисы
@@ -32,12 +31,12 @@ class Settings(BaseSettings):
     # Безопасность — загружаются из переменных окружения с NOTIFICATION_ префиксом
     SERVICE_API_KEY: str = Field(
         default="dev-insecure-service-key-change-in-production",
-        description="Service-to-service API key (env: NOTIFICATION_SERVICE_API_KEY)"
+        description="Service-to-service API key (env: NOTIFICATION_SERVICE_API_KEY)",
     )
     JWT_ALGORITHM: str = "HS256"
     JWT_SECRET_KEY: str = Field(
         default="dev-insecure-secret-key-change-in-production",
-        description="JWT secret key (env: NOTIFICATION_JWT_SECRET_KEY)"
+        description="JWT secret key (env: NOTIFICATION_JWT_SECRET_KEY)",
     )
     # WebSocket
     WS_HEARTBEAT_INTERVAL: int = 30
@@ -53,7 +52,7 @@ class Settings(BaseSettings):
         env_prefix="NOTIFICATION_",
     )
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_secrets_for_production(self):
         """Проверка, что секретные ключи заменены в production-режиме"""
         if not self.DEBUG:
@@ -67,8 +66,10 @@ class Settings(BaseSettings):
                 )
         return self
 
+
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()
+
 
 settings = get_settings()

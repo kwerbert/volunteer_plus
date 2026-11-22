@@ -1,8 +1,10 @@
-from sqlalchemy import select, update, and_, func
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
 from datetime import datetime, timezone
-from .models import User, UserSettings, UserLocation, RefreshToken, UserRoleEnum
+from typing import Optional
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .models import RefreshToken, User, UserLocation, UserRoleEnum, UserSettings
 
 
 class UserRepository:
@@ -32,12 +34,12 @@ class UserRepository:
         return result.scalar_one_or_none() is not None
 
     async def create(
-            self,
-            email: str,
-            password_hash: str,
-            full_name: Optional[str] = None,
-            phone: Optional[str] = None,
-            role: UserRoleEnum = UserRoleEnum.VOLUNTEER
+        self,
+        email: str,
+        password_hash: str,
+        full_name: Optional[str] = None,
+        phone: Optional[str] = None,
+        role: UserRoleEnum = UserRoleEnum.VOLUNTEER,
     ) -> User:
         """Создание нового пользователя"""
         user = User(
@@ -45,18 +47,14 @@ class UserRepository:
             password_hash=password_hash,
             full_name=full_name,
             phone=phone,
-            role=role
+            role=role,
         )
         self.session.add(user)
         await self.session.commit()
         await self.session.refresh(user)
         return user
 
-    async def update(
-            self,
-            user_id: int,
-            **kwargs
-    ) -> Optional[User]:
+    async def update(self, user_id: int, **kwargs) -> Optional[User]:
         """Обновление данных пользователя"""
         stmt = update(User).where(User.id == user_id).values(**kwargs)
         await self.session.execute(stmt)
@@ -65,8 +63,10 @@ class UserRepository:
 
     async def update_last_login(self, user_id: int) -> bool:
         """Обновление времени последнего входа"""
-        stmt = update(User).where(User.id == user_id).values(
-            last_login=datetime.now(timezone.utc)
+        stmt = (
+            update(User)
+            .where(User.id == user_id)
+            .values(last_login=datetime.now(timezone.utc))
         )
         await self.session.execute(stmt)
         await self.session.commit()
@@ -88,17 +88,12 @@ class UserRepository:
         await self.session.refresh(settings)
         return settings
 
-    async def update_settings(
-            self,
-            user_id: int,
-            **kwargs
-    ) -> Optional[UserSettings]:
+    async def update_settings(self, user_id: int, **kwargs) -> Optional[UserSettings]:
         """Обновление настроек пользователя"""
-        stmt = update(UserSettings).where(
-            UserSettings.user_id == user_id
-        ).values(
-            **kwargs,
-            updated_at=datetime.now(timezone.utc)
+        stmt = (
+            update(UserSettings)
+            .where(UserSettings.user_id == user_id)
+            .values(**kwargs, updated_at=datetime.now(timezone.utc))
         )
         await self.session.execute(stmt)
         await self.session.commit()
@@ -113,22 +108,24 @@ class UserRepository:
         return result.scalar_one_or_none()
 
     async def update_location(
-            self,
-            user_id: int,
-            latitude: float,
-            longitude: float,
-            accuracy: Optional[float] = None
+        self,
+        user_id: int,
+        latitude: float,
+        longitude: float,
+        accuracy: Optional[float] = None,
     ) -> UserLocation:
         """Обновление геолокации пользователя"""
         existing = await self.get_location(user_id)
         if existing:
-            stmt = update(UserLocation).where(
-                UserLocation.user_id == user_id
-            ).values(
-                latitude=latitude,
-                longitude=longitude,
-                accuracy=accuracy,
-                updated_at=datetime.now(timezone.utc)
+            stmt = (
+                update(UserLocation)
+                .where(UserLocation.user_id == user_id)
+                .values(
+                    latitude=latitude,
+                    longitude=longitude,
+                    accuracy=accuracy,
+                    updated_at=datetime.now(timezone.utc),
+                )
             )
             await self.session.execute(stmt)
             await self.session.commit()
@@ -138,7 +135,7 @@ class UserRepository:
                 user_id=user_id,
                 latitude=latitude,
                 longitude=longitude,
-                accuracy=accuracy
+                accuracy=accuracy,
             )
             self.session.add(location)
             await self.session.commit()
@@ -148,16 +145,11 @@ class UserRepository:
     # === RefreshToken (Blacklist) ===
 
     async def create_refresh_token(
-            self,
-            user_id: int,
-            token_hash: str,
-            expires_at: datetime
+        self, user_id: int, token_hash: str, expires_at: datetime
     ) -> RefreshToken:
         """Создание записи refresh токена"""
         token = RefreshToken(
-            user_id=user_id,
-            token_hash=token_hash,
-            expires_at=expires_at
+            user_id=user_id, token_hash=token_hash, expires_at=expires_at
         )
         self.session.add(token)
         await self.session.commit()
@@ -167,17 +159,18 @@ class UserRepository:
     async def is_token_revoked(self, token_hash: str) -> bool:
         """Проверка отозван ли токен"""
         stmt = select(RefreshToken).where(
-            RefreshToken.token_hash == token_hash,
-            RefreshToken.revoked == True
+            RefreshToken.token_hash == token_hash, RefreshToken.revoked
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None
 
     async def revoke_token(self, token_hash: str) -> bool:
         """Отзыв токена (добавление в blacklist)"""
-        stmt = update(RefreshToken).where(
-            RefreshToken.token_hash == token_hash
-        ).values(revoked=True)
+        stmt = (
+            update(RefreshToken)
+            .where(RefreshToken.token_hash == token_hash)
+            .values(revoked=True)
+        )
         await self.session.execute(stmt)
         await self.session.commit()
         return True

@@ -1,9 +1,11 @@
-from typing import Dict, List
-from fastapi import WebSocket
 import json
 import logging
+from typing import Dict, List
+
+from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
+
 
 class ConnectionManager:
     def __init__(self):
@@ -15,7 +17,9 @@ class ConnectionManager:
         if chat_id not in self.active_connections:
             self.active_connections[chat_id] = []
         self.active_connections[chat_id].append(websocket)
-        logger.info(f"WebSocket connected to chat {chat_id}, total: {len(self.active_connections[chat_id])}")
+        logger.info(
+            f"WebSocket connected to chat {chat_id}, total: {len(self.active_connections[chat_id])}"
+        )
 
     def disconnect(self, chat_id: int, websocket: WebSocket):
         if chat_id in self.active_connections:
@@ -33,5 +37,6 @@ class ConnectionManager:
                 await connection.send_text(message_json)
             except Exception as e:
                 logger.error(f"Failed to send message to websocket: {e}")
+
 
 manager = ConnectionManager()

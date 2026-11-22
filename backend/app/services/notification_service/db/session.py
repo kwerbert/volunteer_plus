@@ -1,19 +1,24 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from app.services.notification_service.config import settings
 import os
+import re
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from app.services.notification_service.config import settings
 
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=os.getenv("SQLALCHEMY_ECHO", "false").lower() == "true",
     future=True,
 )
-
 async_session_maker = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
     autoflush=False,
 )
+# SQLAlchemy рендерит: CHECK (notification_type IN ('CHAT', ...))
+_OLD_ENUM_CHECK = re.compile(r"notification_type\s+IN\s*\(", re.IGNORECASE)
+
 
 async def get_db_session() -> AsyncSession:
     """Dependency для FastAPI: получение сессии БД"""

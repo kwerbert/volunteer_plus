@@ -1,15 +1,17 @@
 """
 Система фильтров для мероприятий
 """
-from typing import List, Dict, Any, Optional
-from datetime import datetime
-import math
-from ..config import Settings
-from ..api.schemas import FeedFilterParams
-from ..utils.geolocation import calculate_distance
+
 import logging
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from ..api.schemas import FeedFilterParams
+from ..config import Settings
+from ..utils.geolocation import calculate_distance
 
 logger = logging.getLogger(__name__)
+
 
 class FilterEngine:
     """Класс для фильтрации мероприятий по различным критериям"""
@@ -21,7 +23,7 @@ class FilterEngine:
         self,
         events: List[Dict[str, Any]],
         filter_params: FeedFilterParams,
-        user_location: Dict[str, Optional[float]]
+        user_location: Dict[str, Optional[float]],
     ) -> List[Dict[str, Any]]:
         """
         Применение всех фильтров к списку мероприятий
@@ -37,14 +39,18 @@ class FilterEngine:
         # Фильтр 1: По дате (только если даты явно указаны)
         if filter_params.date_from:
             filtered = [
-                event for event in filtered
-                if self._parse_datetime(event.get("start_time", "")) >= filter_params.date_from
+                event
+                for event in filtered
+                if self._parse_datetime(event.get("start_time", ""))
+                >= filter_params.date_from
             ]
 
         if filter_params.date_to:
             filtered = [
-                event for event in filtered
-                if self._parse_datetime(event.get("start_time", "")) <= filter_params.date_to
+                event
+                for event in filtered
+                if self._parse_datetime(event.get("start_time", ""))
+                <= filter_params.date_to
             ]
 
         # Фильтр 2: По геолокации
@@ -53,20 +59,23 @@ class FilterEngine:
                 events=filtered,
                 user_lat=user_location["lat"],
                 user_lon=user_location["lon"],
-                max_radius_km=filter_params.radius_km or self.settings.DEFAULT_SEARCH_RADIUS_KM
+                max_radius_km=filter_params.radius_km
+                or self.settings.DEFAULT_SEARCH_RADIUS_KM,
             )
 
         # Фильтр 3: По категориям
         if filter_params.category_ids:
             filtered = [
-                event for event in filtered
+                event
+                for event in filtered
                 if event.get("category_id") in filter_params.category_ids
             ]
 
         # Фильтр 4: По ролям
         if filter_params.role_ids:
             filtered = [
-                event for event in filtered
+                event
+                for event in filtered
                 if event.get("required_role_id") in filter_params.role_ids
             ]
 
@@ -91,7 +100,7 @@ class FilterEngine:
         events: List[Dict[str, Any]],
         user_lat: float,
         user_lon: float,
-        max_radius_km: int
+        max_radius_km: int,
     ) -> List[Dict[str, Any]]:
         """
         Фильтрация мероприятий по расстоянию от пользователя
@@ -117,5 +126,5 @@ class FilterEngine:
                 filtered.append(event)
 
         # Сортируем по расстоянию (ближайшие первыми)
-        filtered.sort(key=lambda e: e.get("distance_km") or float('inf'))
+        filtered.sort(key=lambda e: e.get("distance_km") or float("inf"))
         return filtered

@@ -1,0 +1,271 @@
+name: volunteer-plus
+
+x-common-env: &common-env
+  JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY required in .env.docker}
+  JWT_ALGORITHM: HS256
+  SERVICE_API_KEY: ${SERVICE_API_KEY:?SERVICE_API_KEY required in .env.docker}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  DEBUG: ${DEBUG:-false}
+  DATABASE_URL: ${DATABASE_URL:?DATABASE_URL required in .env.docker}
+
+x-health: &health
+  interval: 10s
+  timeout: 3s
+  retries: 10
+  start_period: 15s
+
+x-backend: &backend-base
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  image: volunteer-plus-backend:latest
+  restart: unless-stopped
+  networks: [volunteer-net]
+
+services:
+  # ─────────────────────────────────────────────────────────
+  # PostgreSQL
+  # ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+    - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-volunteer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+      POSTGRES_DB: ${POSTGRES_DB:-volunteer_plus}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    networks: [volunteer-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-volunteer} -d ${POSTGRES_DB:-volunteer_plus}"]
+      <<: *health
+
+  # ─────────────────────────────────────────────────────────
+  # Alembic-миграции (одноразовый контейнер)
+  # ─────────────────────────────────────────────────────────
+  migrate:
+    <<: *backend-base
+    command: alembic upgrade head
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  # ─────────────────────────────────────────────────────────
+  # user_service
+  # ─────────────────────────────────────────────────────────
+  user_service:
+    <<: *backend-base
+    command: uvicorn app.services.user_service.main:app --host 0.0.0.0 --port 8008
+    environment:
+      <<: *common-env
+      USER_SERVICE_PORT: "8008"
+      USER_DATABASE_URL: ${DATABASE_URL}
+      USER_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      USER_SERVICE_API_KEY: ${SERVICE_API_KEY}
+    ports: ["8008:8008"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8008/health"]
+
+  # ─────────────────────────────────────────────────────────
+  # subscription_service
+  # ─────────────────────────────────────────────────────────
+  subscription_service:
+    <<: *backend-base
+    command: uvicorn app.services.subscription_service.main:app --host 0.0.0.0 --port 8002
+    environment:
+      <<: *common-env
+      SUBSCRIPTION_SERVICE_PORT: "8002"
+      SUBSCRIPTION_DATABASE_URL: ${DATABASE_URL}
+      SUBSCRIPTION_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      SUBSCRIPTION_USER_SERVICE_URL: http://user_service:8008
+      SUBSCRIPTION_ORGANIZATION_SERVICE_URL: http://organization_service:8004
+    ports: ["8002:8002"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      user_service: { condition: service_healthy }
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8002/health"]
+
+  # ─────────────────────────────────────────────────────────
+  # organization_service
+  # ─────────────────────────────────────────────────────────
+  organization_service:
+    <<: *backend-base
+    command: uvicorn app.services.organization_service.main:app --host 0.0.0.0 --port 8004
+    environment:
+      <<: *common-env
+      ORGANIZATION_SERVICE_PORT: "8004"
+      ORGANIZATION_DATABASE_URL: ${DATABASE_URL}
+      ORGANIZATION_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      ORGANIZATION_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      ORGANIZATION_NOTIFICATION_SERVICE_URL: http://notification_service:8006
+      ORGANIZATION_CHAT_SERVICE_URL: http://chat_service:8007
+      ORGANIZATION_USER_SERVICE_URL: http://user_service:8008
+      ORGANIZATION_EVENT_SERVICE_URL: http://event_service:8003
+    ports: ["8004:8004"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      user_service: { condition: service_healthy }
+      notification_service: { condition: service_healthy }
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8004/health"]
+
+  # ─────────────────────────────────────────────────────────
+  # event_service
+  # ─────────────────────────────────────────────────────────
+  event_service:
+    <<: *backend-base
+    command: uvicorn app.services.event_service.main:app --host 0.0.0.0 --port 8003
+    environment:
+      <<: *common-env
+      EVENT_SERVICE_PORT: "8003"
+      EVENT_DATABASE_URL: ${DATABASE_URL}
+      EVENT_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      EVENT_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      EVENT_ORGANIZATION_SERVICE_URL: http://organization_service:8004
+      EVENT_ANALYTICS_SERVICE_URL: http://analytics_service:8005
+      EVENT_NOTIFICATION_SERVICE_URL: http://notification_service:8006
+      EVENT_CHAT_SERVICE_URL: http://chat_service:8007
+      EVENT_USER_SERVICE_URL: http://user_service:8008
+      EVENT_CANCELLED_RETENTION_DAYS: "30"
+      EVENT_MAINTENANCE_INTERVAL_SECONDS: "3600"
+    ports: ["8003:8003"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      user_service: { condition: service_healthy }
+      organization_service: { condition: service_healthy }
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8003/health"]
+
+  # ─────────────────────────────────────────────────────────
+  # chat_service
+  # ─────────────────────────────────────────────────────────
+  chat_service:
+    <<: *backend-base
+    command: uvicorn app.services.chat_service.main:app --host 0.0.0.0 --port 8007
+    environment:
+      <<: *common-env
+      CHAT_SERVICE_PORT: "8007"
+      CHAT_DATABASE_URL: ${DATABASE_URL}
+      CHAT_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      CHAT_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      CHAT_USER_SERVICE_URL: http://user_service:8008
+      CHAT_ORGANIZATION_SERVICE_URL: http://organization_service:8004
+      CHAT_EVENT_SERVICE_URL: http://event_service:8003
+      CHAT_NOTIFICATION_SERVICE_URL: http://notification_service:8006
+    ports: ["8007:8007"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      user_service: { condition: service_healthy }
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8007/health"]
+
+  # ─────────────────────────────────────────────────────────
+  # notification_service
+  # ─────────────────────────────────────────────────────────
+  notification_service:
+    <<: *backend-base
+    command: uvicorn app.services.notification_service.main:app --host 0.0.0.0 --port 8006
+    environment:
+      <<: *common-env
+      NOTIFICATION_SERVICE_PORT: "8006"
+      NOTIFICATION_DATABASE_URL: ${DATABASE_URL}
+      NOTIFICATION_JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      NOTIFICATION_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      NOTIFICATION_USER_SERVICE_URL: http://user_service:8008
+      NOTIFICATION_CHAT_SERVICE_URL: http://chat_service:8007
+    ports: ["8006:8006"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      user_service: { condition: service_healthy }
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8006/health"]
+
+  # ─────────────────────────────────────────────────────────
+  # analytics_service
+  # ─────────────────────────────────────────────────────────
+  analytics_service:
+    <<: *backend-base
+    command: uvicorn app.services.analytics_service.main:app --host 0.0.0.0 --port 8005
+    environment:
+      <<: *common-env
+      ANALYTICS_SERVICE_PORT: "8005"
+      ANALYTICS_DATABASE_URL: ${DATABASE_URL}
+      ANALYTICS_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      ANALYTICS_USER_SERVICE_URL: http://user_service:8008
+      ANALYTICS_EVENT_SERVICE_URL: http://event_service:8003
+      ANALYTICS_ORGANIZATION_SERVICE_URL: http://organization_service:8004
+      ANALYTICS_SUBSCRIPTION_SERVICE_URL: http://subscription_service:8002
+    ports: ["8005:8005"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      user_service: { condition: service_healthy }
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8005/health"]
+
+  # ─────────────────────────────────────────────────────────
+  # feed_service
+  # ─────────────────────────────────────────────────────────
+  feed_service:
+    <<: *backend-base
+    command: uvicorn app.services.feed_service.main:app --host 0.0.0.0 --port 8001
+    environment:
+      <<: *common-env
+      FEED_SERVICE_PORT: "8001"
+      FEED_DATABASE_URL: ${DATABASE_URL}
+      FEED_SERVICE_API_KEY: ${SERVICE_API_KEY}
+      FEED_USER_SERVICE_URL: http://user_service:8008
+      FEED_SUBSCRIPTION_SERVICE_URL: http://subscription_service:8002
+      FEED_EVENT_SERVICE_URL: http://event_service:8003
+      FEED_ORGANIZATION_SERVICE_URL: http://organization_service:8004
+      FEED_ANALYTICS_SERVICE_URL: http://analytics_service:8005
+    ports: ["8001:8001"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      user_service: { condition: service_healthy }
+    healthcheck:
+      <<: *health
+      test: ["CMD", "curl", "-fsS", "http://localhost:8001/health"]
+
+  # ─────────────────────────────────────────────────────────
+  # Nginx — API-шлюз
+  # ─────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports: ["80:80"]
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks: [volunteer-net]
+    depends_on:
+      user_service: { condition: service_healthy }
+      subscription_service: { condition: service_healthy }
+      event_service: { condition: service_healthy }
+      organization_service: { condition: service_healthy }
+      analytics_service: { condition: service_healthy }
+      notification_service: { condition: service_healthy }
+      chat_service: { condition: service_healthy }
+      feed_service: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/health"]
+      <<: *health
+
+networks:
+  volunteer-net:
+    driver: bridge
+
+volumes:
+  pg-data:

@@ -1,38 +1,35 @@
+import logging
+from contextlib import asynccontextmanager
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import logging
-import uvicorn
-from app.services.subscription_service.config import settings
+
 from app.services.subscription_service.api.routes import router
-from app.services.subscription_service.db.session import engine, init_db
+from app.services.subscription_service.config import settings
+from app.services.subscription_service.db.session import engine
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager для startup/shutdown событий"""
-    # Startup
-    logger.info(f"Starting {settings.SERVICE_NAME} on port {settings.SERVICE_PORT}")
-    await init_db()
-    logger.info("Database tables checked/created")
+    logger.info("Starting Subscription Service...")
+    # Миграции выполняются через Alembic (сервис `migrate` в docker-compose)
     yield
-    # Shutdown
-    logger.info(f"Shutting down {settings.SERVICE_NAME}")
+    logger.info("Shutting down Subscription Service...")
     await engine.dispose()
 
 
 app = FastAPI(
     title=settings.SERVICE_NAME,
+    description="Микросервис подписок на организации",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -56,5 +53,5 @@ if __name__ == "__main__":
         "app.services.subscription_service.main:app",
         host="0.0.0.0",
         port=settings.SERVICE_PORT,
-        reload=True
+        reload=True,
     )

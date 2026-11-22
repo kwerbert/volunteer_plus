@@ -1,21 +1,13 @@
-"""
-Тесты Subscription Service (pytest версия)
-Консервативный перевод с unittest → pytest
-"""
-import pytest
-import sys
 import os
+import sys
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
-# ============================================================================
-# КРИТИЧЕСКИ ВАЖНО: Настройка путей (как в оригинальных тестах)
-# ============================================================================
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+import pytest
 
-# ============================================================================
-# FIXTURES
-# ============================================================================
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+
 @pytest.fixture
 def mock_session():
     """Фикстура для мок-сессии БД"""
@@ -23,9 +15,9 @@ def mock_session():
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
     session.execute = AsyncMock()
-    # ИСПРАВЛЕНО: session.add() — синхронный метод, нужен MagicMock, не AsyncMock
     session.add = MagicMock()
     return session
+
 
 @pytest.fixture
 def mock_repository():
@@ -40,43 +32,47 @@ def mock_repository():
     repo.log_action = AsyncMock()
     return repo
 
+
 @pytest.fixture
 def clear_settings_cache():
     """Очистка кэша настроек"""
     from app.services.subscription_service.config import get_settings
+
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
 
-# ============================================================================
-# ТЕСТЫ КОНФИГУРАЦИИ
-# ============================================================================
+
 class TestConfig:
     """Тесты конфигурации сервиса"""
+
     def test_001_config_settings(self, clear_settings_cache):
         """Проверка основных настроек сервиса"""
         from app.services.subscription_service.config import settings
+
         assert settings.SERVICE_PORT == 8002
         assert settings.SERVICE_NAME == "subscription_service"
-        assert settings.DATABASE_URL.endswith("volunteer_plus.db")
-        assert "sqlite+aiosqlite" in settings.DATABASE_URL
+        assert "volunteer_plus" in settings.DATABASE_URL
+        assert "postgresql+asyncpg" in settings.DATABASE_URL
 
     def test_002_config_singleton(self):
         """Проверка что settings кэшируется (singleton)"""
         from app.services.subscription_service.config import get_settings
+
         settings1 = get_settings()
         settings2 = get_settings()
         assert settings1 is settings2
 
-# ============================================================================
-# ТЕСТЫ СХЕМ
-# ============================================================================
+
 class TestSchemas:
     """Тесты Pydantic схем"""
+
     def test_003_subscription_create_schema(self):
         """Проверка схемы создания подписки"""
-        from app.services.subscription_service.api.schemas import SubscriptionCreate
         from pydantic import ValidationError
+
+        from app.services.subscription_service.api.schemas import SubscriptionCreate
+
         # Валидные данные
         sub = SubscriptionCreate(user_id=1, org_id=2, role="volunteer")
         assert sub.user_id == 1
@@ -92,6 +88,7 @@ class TestSchemas:
     def test_004_subscription_update_schema(self):
         """Проверка схемы обновления подписки"""
         from app.services.subscription_service.api.schemas import SubscriptionUpdate
+
         update_role = SubscriptionUpdate(role="admin")
         assert update_role.role == "admin"
         assert update_role.active is None
@@ -102,13 +99,18 @@ class TestSchemas:
     def test_005_response_schemas(self):
         """Проверка схем ответов API"""
         from app.services.subscription_service.api.schemas import (
-            SubscriptionResponse,
+            MessageResponse,
             SubscriptionCheckResponse,
-            MessageResponse
+            SubscriptionResponse,
         )
+
         response = SubscriptionResponse(
-            id=1, user_id=100, org_id=200, role="volunteer",
-            active=True, created_at=datetime.now(timezone.utc)
+            id=1,
+            user_id=100,
+            org_id=200,
+            role="volunteer",
+            active=True,
+            created_at=datetime.now(timezone.utc),
         )
         assert response.id == 1
         assert response.active is True
@@ -119,46 +121,63 @@ class TestSchemas:
         msg = MessageResponse(message="Success", detail="Info")
         assert msg.message == "Success"
 
-# ============================================================================
-# ТЕСТЫ МОДЕЛЕЙ
-# ============================================================================
 
 class TestModels:
     """Тесты SQLAlchemy моделей"""
+
     def test_006_subscription_model(self):
         """Проверка модели Subscription"""
         from app.services.subscription_service.db.models import Subscription
+
         assert Subscription.__tablename__ == "subscriptions"
         columns = [col.name for col in Subscription.__table__.columns]
-        required_fields = ['id', 'user_id', 'org_id', 'role', 'active', 'created_at', 'updated_at']
+        required_fields = [
+            "id",
+            "user_id",
+            "org_id",
+            "role",
+            "active",
+            "created_at",
+            "updated_at",
+        ]
         for field in required_fields:
             assert field in columns
 
     def test_007_subscription_log_model(self):
         """Проверка модели SubscriptionLog"""
         from app.services.subscription_service.db.models import SubscriptionLog
+
         assert SubscriptionLog.__tablename__ == "subscription_logs"
         columns = [col.name for col in SubscriptionLog.__table__.columns]
-        required_fields = ['id', 'subscription_id', 'user_id', 'org_id', 'action', 'details', 'created_at']
+        required_fields = [
+            "id",
+            "subscription_id",
+            "user_id",
+            "org_id",
+            "action",
+            "details",
+            "created_at",
+        ]
         for field in required_fields:
             assert field in columns
 
-# ============================================================================
-# ТЕСТЫ РЕПОЗИТОРИЯ
-# ============================================================================
 
 @pytest.mark.asyncio
 class TestRepository:
     """Тесты репозитория"""
+
     async def test_008_repository_read_operations(self, mock_session):
         """Проверка операций чтения"""
-        from app.services.subscription_service.db.repository import SubscriptionRepository
         from app.services.subscription_service.db.models import Subscription
+        from app.services.subscription_service.db.repository import (
+            SubscriptionRepository,
+        )
+
         repo = SubscriptionRepository(mock_session)
         mock_result = MagicMock()
         mock_result.scalars().all.return_value = [
             Subscription(id=1, user_id=100, org_id=200, role="volunteer", active=True),
-            Subscription(id=2, user_id=100, org_id=201, role="admin", active=True)
+            Subscription(id=2, user_id=100, org_id=201, role="admin", active=True),
         ]
         mock_result.scalar_one_or_none.return_value = Subscription(
             id=1, user_id=100, org_id=200, role="volunteer", active=True
@@ -171,7 +190,10 @@ class TestRepository:
 
     async def test_009_repository_create(self, mock_session):
         """Проверка создания подписки"""
-        from app.services.subscription_service.db.repository import SubscriptionRepository
+        from app.services.subscription_service.db.repository import (
+            SubscriptionRepository,
+        )
+
         repo = SubscriptionRepository(mock_session)
         result = await repo.create(user_id=100, org_id=200, role="admin")
         assert result.user_id == 100
@@ -180,7 +202,10 @@ class TestRepository:
 
     async def test_010_repository_update_and_delete(self, mock_session):
         """Проверка обновления и удаления"""
-        from app.services.subscription_service.db.repository import SubscriptionRepository
+        from app.services.subscription_service.db.repository import (
+            SubscriptionRepository,
+        )
+
         repo = SubscriptionRepository(mock_session)
         result = await repo.soft_delete(sub_id=5)
         assert result is True
@@ -195,38 +220,51 @@ class TestRepository:
 
     async def test_011_repository_log_action(self, mock_session):
         """Проверка логирования действий"""
-        from app.services.subscription_service.db.repository import SubscriptionRepository
         from app.services.subscription_service.db.models import SubscriptionLog
+        from app.services.subscription_service.db.repository import (
+            SubscriptionRepository,
+        )
+
         repo = SubscriptionRepository(mock_session)
         await repo.log_action(
-            user_id=100, org_id=200, action="SUBSCRIBE",
-            sub_id=5, details="Test subscription"
+            user_id=100,
+            org_id=200,
+            action="SUBSCRIBE",
+            sub_id=5,
+            details="Test subscription",
         )
         mock_session.add.assert_called_once()
         call_args = mock_session.add.call_args[0][0]
         assert isinstance(call_args, SubscriptionLog)
         assert call_args.user_id == 100
 
-# ============================================================================
-# ТЕСТЫ БИЗНЕС-ЛОГИКИ
-# ============================================================================
 
 @pytest.mark.asyncio
 class TestService:
     """Тесты бизнес-логики"""
+
     async def test_012_service_subscribe_scenarios(self, mock_repository):
         """Проверка сценариев подписки (новая, дубликат, реактивация)"""
         from app.services.subscription_service.core.service import SubscriptionService
         from app.services.subscription_service.db.models import Subscription
+
         service = SubscriptionService(mock_repository)
         # Сценарий 1: Новая подписка
         mock_repository.get_by_user_and_org.return_value = None
         mock_repository.create.return_value = Subscription(
             id=1, user_id=100, org_id=200, role="volunteer", active=True
         )
-        with patch('app.services.subscription_service.core.service.verify_user', return_value=True):
-            with patch('app.services.subscription_service.core.service.verify_organization', return_value=True):
-                result = await service.subscribe(user_id=100, org_id=200, role="volunteer")
+        with patch(
+            "app.services.subscription_service.core.service.verify_user",
+            return_value=True,
+        ):
+            with patch(
+                "app.services.subscription_service.core.service.verify_organization",
+                return_value=True,
+            ):
+                result = await service.subscribe(
+                    user_id=100, org_id=200, role="volunteer"
+                )
                 assert result is not None
                 mock_repository.create.assert_called_once()
         # Сценарий 2: Уже активная подписка (ошибка)
@@ -235,26 +273,43 @@ class TestService:
             id=1, user_id=100, org_id=200, role="volunteer", active=True
         )
         with pytest.raises(ValueError, match="already subscribed"):
-            with patch('app.services.subscription_service.core.service.verify_user', return_value=True):
-                with patch('app.services.subscription_service.core.service.verify_organization', return_value=True):
+            with patch(
+                "app.services.subscription_service.core.service.verify_user",
+                return_value=True,
+            ):
+                with patch(
+                    "app.services.subscription_service.core.service.verify_organization",
+                    return_value=True,
+                ):
                     await service.subscribe(user_id=100, org_id=200, role="volunteer")
 
     async def test_013_service_subscribe_validation(self, mock_repository):
         """Проверка валидации пользователя и организации"""
         from app.services.subscription_service.core.service import SubscriptionService
+
         service = SubscriptionService(mock_repository)
         with pytest.raises(ValueError, match="User with ID 999 does not exist"):
-            with patch('app.services.subscription_service.core.service.verify_user', return_value=False):
+            with patch(
+                "app.services.subscription_service.core.service.verify_user",
+                return_value=False,
+            ):
                 await service.subscribe(user_id=999, org_id=200, role="volunteer")
         with pytest.raises(ValueError, match="Organization with ID 999 does not exist"):
-            with patch('app.services.subscription_service.core.service.verify_user', return_value=True):
-                with patch('app.services.subscription_service.core.service.verify_organization', return_value=False):
+            with patch(
+                "app.services.subscription_service.core.service.verify_user",
+                return_value=True,
+            ):
+                with patch(
+                    "app.services.subscription_service.core.service.verify_organization",
+                    return_value=False,
+                ):
                     await service.subscribe(user_id=100, org_id=999, role="volunteer")
 
     async def test_014_service_unsubscribe(self, mock_repository):
         """Проверка отписки"""
         from app.services.subscription_service.core.service import SubscriptionService
         from app.services.subscription_service.db.models import Subscription
+
         service = SubscriptionService(mock_repository)
         mock_repository.get_by_id.return_value = Subscription(
             id=5, user_id=100, org_id=200, role="volunteer", active=True
@@ -269,13 +324,14 @@ class TestService:
 
     async def test_015_service_update_and_check_status(self, mock_repository):
         """Проверка обновления и проверки статуса"""
-        from app.services.subscription_service.core.service import SubscriptionService
         from app.services.subscription_service.api.schemas import SubscriptionUpdate
+        from app.services.subscription_service.core.service import SubscriptionService
         from app.services.subscription_service.db.models import Subscription
+
         service = SubscriptionService(mock_repository)
         mock_repository.get_by_id.side_effect = [
             Subscription(id=5, user_id=100, org_id=200, role="volunteer", active=True),
-            Subscription(id=5, user_id=100, org_id=200, role="admin", active=False)
+            Subscription(id=5, user_id=100, org_id=200, role="admin", active=False),
         ]
         mock_repository.update_role.return_value = Subscription(
             id=5, user_id=100, org_id=200, role="admin", active=False
@@ -295,17 +351,16 @@ class TestService:
         """Проверка получения всех подписок пользователя"""
         from app.services.subscription_service.core.service import SubscriptionService
         from app.services.subscription_service.db.models import Subscription
+
         service = SubscriptionService(mock_repository)
         mock_repository.get_by_user.return_value = [
             Subscription(id=1, user_id=100, org_id=200, role="volunteer", active=True),
-            Subscription(id=2, user_id=100, org_id=201, role="admin", active=True)
+            Subscription(id=2, user_id=100, org_id=201, role="admin", active=True),
         ]
         result = await service.get_user_subscriptions(user_id=100, active_only=True)
         assert len(result) == 2
 
-# ============================================================================
-# ТЕСТЫ HTTP КЛИЕНТА
-# ============================================================================
+
 @pytest.mark.asyncio
 class TestHTTPClient:
     """Тесты HTTP клиента"""
@@ -313,21 +368,21 @@ class TestHTTPClient:
     async def test_017_http_client_success(self):
         """Проверка верификации сущностей (успех)"""
         from app.services.subscription_service.utils.http_client import (
-            verify_organization, verify_user
+            verify_organization,
+            verify_user,
         )
+
         mock_response = AsyncMock()
         mock_response.status = 200
         # Настраиваем json() как AsyncMock с конкретным словарём
-        mock_response.json = AsyncMock(
-            return_value={"exists": True, "is_active": True}
-        )
+        mock_response.json = AsyncMock(return_value={"exists": True, "is_active": True})
         mock_response.__aenter__ = AsyncMock(return_value=mock_response)
         mock_response.__aexit__ = AsyncMock(return_value=None)
         mock_session = AsyncMock()
         mock_session.get = MagicMock(return_value=mock_response)
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
-        with patch('aiohttp.ClientSession', return_value=mock_session):
+        with patch("aiohttp.ClientSession", return_value=mock_session):
             result = await verify_organization(org_id=200)
             assert result is True
             result = await verify_user(user_id=100)
@@ -335,7 +390,10 @@ class TestHTTPClient:
 
     async def test_018_http_client_errors(self):
         """Проверка обработки ошибок HTTP клиента"""
-        from app.services.subscription_service.utils.http_client import verify_organization, verify_user
+        from app.services.subscription_service.utils.http_client import (
+            verify_organization,
+        )
+
         mock_response_404 = AsyncMock()
         mock_response_404.status = 404
         mock_response_404.__aenter__ = AsyncMock(return_value=mock_response_404)
@@ -344,29 +402,30 @@ class TestHTTPClient:
         mock_session_404.get = MagicMock(return_value=mock_response_404)
         mock_session_404.__aenter__ = AsyncMock(return_value=mock_session_404)
         mock_session_404.__aexit__ = AsyncMock(return_value=None)
-        with patch('aiohttp.ClientSession', return_value=mock_session_404):
+        with patch("aiohttp.ClientSession", return_value=mock_session_404):
             result = await verify_organization(org_id=999)
             assert result is False
 
     async def test_019_http_client_connection_error(self):
         """Проверка ошибки соединения"""
         from app.services.subscription_service.utils.http_client import verify_user
+
         mock_session_error = AsyncMock()
         mock_session_error.get = MagicMock(side_effect=Exception("Connection error"))
         mock_session_error.__aenter__ = AsyncMock(return_value=mock_session_error)
         mock_session_error.__aexit__ = AsyncMock(return_value=None)
-        with patch('aiohttp.ClientSession', return_value=mock_session_error):
+        with patch("aiohttp.ClientSession", return_value=mock_session_error):
             result = await verify_user(user_id=100)
             assert result is False
 
-# ============================================================================
-# ТЕСТЫ FASTAPI ПРИЛОЖЕНИЯ
-# ============================================================================
+
 class TestMainApp:
     """Тесты FastAPI приложения"""
+
     def test_020_app_creation(self, clear_settings_cache):
         """Проверка создания FastAPI приложения"""
         from app.services.subscription_service.main import app
+
         assert app is not None
         assert app.title == "subscription_service"
         assert app.version == "1.0.0"
@@ -375,6 +434,7 @@ class TestMainApp:
         """Проверка подключенных роутов (рекурсивно)"""
         from app.services.subscription_service.main import app
         from tests.conftest import collect_route_paths
+
         routes = collect_route_paths(app)
         subscription_routes = [r for r in routes if "subscription" in r.lower()]
         assert len(subscription_routes) > 0, (
@@ -382,22 +442,13 @@ class TestMainApp:
         )
         assert "/health" in routes
 
-# ============================================================================
-# ЗАПУСК ТЕСТОВ
-# ============================================================================
+
 if __name__ == "__main__":
     print("=" * 80)
     print("ЗАПУСК ТЕСТОВ SUBSCRIPTION SERVICE (pytest)")
     print("=" * 80)
-    exit_code = pytest.main([
-        __file__,
-        "-v",
-        "--tb=short",
-        "-s"
-    ])
+    exit_code = pytest.main([__file__, "-v", "--tb=short", "-s"])
     print("\n" + "=" * 80)
     print(f"КОД ВЫХОДА: {exit_code}")
     print("=" * 80)
     sys.exit(exit_code)
-
-# pytest tests/test_subs_s.py -v

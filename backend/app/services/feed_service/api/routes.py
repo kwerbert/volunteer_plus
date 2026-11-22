@@ -1,16 +1,17 @@
 """
 API Routes для Feed Service.
-✅ Внедрение зависимостей: repository, http_session, feed_generator.
+Внедрение зависимостей: repository, http_session, feed_generator.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from typing import Optional
+
 import logging
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+
+from ..api.schemas import FeedFilterParams, FeedResponse
 from ..config import settings
-from ..db.repository import FeedRepository, get_feed_repository
-from ..core.http_client import get_async_session, AsyncSession
 from ..core.feed_generator import FeedGenerator
-from ..api.schemas import FeedResponse, FeedFilterParams
+from ..core.http_client import AsyncSession, get_async_session
+from ..db.repository import FeedRepository, get_feed_repository
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ def get_feed_generator(
 ) -> FeedGenerator:
     """
     Factory-зависимость для создания FeedGenerator с инъекцией session.
-    ✅ Session передаётся в сервис, а не создаётся заново на каждый запрос.
+    Session передаётся в сервис, а не создаётся заново на каждый запрос.
     """
     return FeedGenerator(
         repository=repository,
@@ -65,6 +66,7 @@ async def debug_feed(
 ):
     """Debug-эндпоинт для проверки работы генератора."""
     from ..api.schemas import FeedFilterParams
+
     filter_params = FeedFilterParams()
 
     feed = await feed_generator.generate_feed(

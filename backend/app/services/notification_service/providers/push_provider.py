@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 class PushProvider(ABC):
@@ -7,12 +7,12 @@ class PushProvider(ABC):
 
     @abstractmethod
     async def send_push_notification(
-            self,
-            device_token: str,
-            title: str,
-            body: str,
-            data: Dict[str, str],
-            priority: str = "normal"
+        self,
+        device_token: str,
+        title: str,
+        body: str,
+        data: Dict[str, str],
+        priority: str = "normal",
     ) -> Dict[str, Any]:
         """
         Отправка push-уведомления

@@ -1,21 +1,33 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, func
-from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime, timezone
 
-Base = declarative_base()
+from sqlalchemy import Column, DateTime, Float, Integer, String
+
+from app.db.base import Base
+
 
 class VolunteerStats(Base):
     __tablename__ = "volunteer_stats"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, nullable=False, index=True)
     organization_id = Column(Integer, nullable=True, index=True)
+    organization_name_snapshot = Column(String(255), nullable=True)
     role = Column(String(100), nullable=True)
     hours_worked = Column(Float, default=0.0)
     events_completed = Column(Integer, default=0)
-    last_activity = Column(DateTime, nullable=True)
+    last_activity = Column(DateTime(timezone=True), nullable=True)
     # ИСПРАВЛЕНО: timezone-aware datetime
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=True,
+    )
+
 
 class MonthlyStats(Base):
     __tablename__ = "monthly_stats"
@@ -26,7 +38,12 @@ class MonthlyStats(Base):
     hours_worked = Column(Float, default=0.0)
     events_completed = Column(Integer, default=0)
     # ИСПРАВЛЕНО
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )
+
 
 class PreferredRole(Base):
     __tablename__ = "preferred_roles"
@@ -36,4 +53,8 @@ class PreferredRole(Base):
     score = Column(Float, default=0.0)
     events_count = Column(Integer, default=0)
     # ИСПРАВЛЕНО
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
+    )

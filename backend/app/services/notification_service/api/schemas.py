@@ -1,12 +1,16 @@
-from pydantic import BaseModel, Field, field_validator, ConfigDict
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Optional, Dict, Any, List
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from app.services.notification_service.config import Platform, NotificationType, Priority
+from pydantic import BaseModel, ConfigDict, Field
 
+from app.services.notification_service.config import (
+    NotificationType,
+    Platform,
+    Priority,
+)
 
 # === Request Schemas ===
+
 
 class CreateNotificationRequest(BaseModel):
     user_id: int = Field(..., gt=0)
@@ -29,6 +33,7 @@ class RegisterTokenRequest(BaseModel):
 
 
 # === Response Schemas ===
+
 
 class NotificationResponse(BaseModel):
     id: int
@@ -76,6 +81,7 @@ class HealthResponse(BaseModel):
 
 
 # === WebSocket Schemas ===
+
 
 class WebSocketNotificationMessage(BaseModel):
     type: str = "notification"

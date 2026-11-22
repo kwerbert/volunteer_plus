@@ -1,19 +1,23 @@
 """
 Менеджер кэширования для ускорения работы сервиса
 """
-from typing import Optional, Any
+
 import json
-import time
-from ..config import Settings
 import logging
+import time
+from typing import Any, Optional
+
+from ..config import Settings
 
 logger = logging.getLogger(__name__)
+
 
 class CacheManager:
     """
     Простая реализация кэша в памяти
     Для продакшена рекомендуется использовать Redis
     """
+
     def __init__(self, settings: Settings):
         self.settings = settings
         self._cache: dict = {}
@@ -39,17 +43,16 @@ class CacheManager:
     def set(self, key: str, value: Any, ttl: int = 300) -> bool:
         """
         Сохранение значения в кэш
-        ✅ ИСПРАВЛЕНО: добавлен default=str для сериализации datetime
+        ИСПРАВЛЕНО: добавлен default=str для сериализации datetime
         """
         if not self._cache_enabled:
             return False
         try:
-            # ✅ ИСПРАВЛЕНО: json.dumps теперь умеет обрабатывать datetime через str()
             serialized_value = json.loads(json.dumps(value, default=str))
             self._cache[key] = {
                 "value": serialized_value,
                 "expires_at": time.time() + ttl,
-                "created_at": time.time()
+                "created_at": time.time(),
             }
             logger.debug(f"Cache set for key: {key} (ttl={ttl}s)")
             return True
@@ -73,9 +76,11 @@ class CacheManager:
     def get_stats(self) -> dict:
         """Получение статистики кэша"""
         now = time.time()
-        valid_items = sum(1 for item in self._cache.values() if item["expires_at"] > now)
+        valid_items = sum(
+            1 for item in self._cache.values() if item["expires_at"] > now
+        )
         return {
             "total_items": len(self._cache),
             "valid_items": valid_items,
-            "expired_items": len(self._cache) - valid_items
+            "expired_items": len(self._cache) - valid_items,
         }

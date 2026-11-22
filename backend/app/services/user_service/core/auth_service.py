@@ -1,14 +1,19 @@
 """Сервис аутентификации: регистрация, логин, управление токенами"""
+
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
-import logging
-from app.services.user_service.db.repository import UserRepository
-from app.services.user_service.core.security import (
-    hash_password, verify_password,
-    create_access_token, create_refresh_token, decode_token,
-    hash_token_for_blacklist
-)
+
 from app.services.user_service.config import settings
+from app.services.user_service.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_password,
+    hash_token_for_blacklist,
+    verify_password,
+)
+from app.services.user_service.db.repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -20,11 +25,11 @@ class AuthService:
         self.user_repo = user_repo
 
     async def register(
-            self,
-            email: str,
-            password: str,
-            full_name: Optional[str] = None,
-            phone: Optional[str] = None
+        self,
+        email: str,
+        password: str,
+        full_name: Optional[str] = None,
+        phone: Optional[str] = None,
     ) -> Tuple[dict, dict]:
         """
         Регистрация нового пользователя
@@ -39,10 +44,7 @@ class AuthService:
         # Хеширование пароля и создание пользователя
         password_hash = hash_password(password)
         user = await self.user_repo.create(
-            email=email,
-            password_hash=password_hash,
-            full_name=full_name,
-            phone=phone
+            email=email, password_hash=password_hash, full_name=full_name, phone=phone
         )
 
         # Создание настроек по умолчанию
@@ -116,14 +118,17 @@ class AuthService:
         token_data = {
             "user_id": user.id,
             "email": user.email,
-            "role": user.role.value if hasattr(user.role, 'value') else user.role
+            "role": user.role.value if hasattr(user.role, "value") else user.role,
+            "is_admin": bool(user.is_admin),
         }
         access_token = create_access_token(token_data)
         refresh_token = create_refresh_token(token_data)
 
         # Сохранение хеша refresh токена
         token_hash = hash_token_for_blacklist(refresh_token)
-        expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
         await self.user_repo.create_refresh_token(user.id, token_hash, expires_at)
 
         return {
@@ -131,7 +136,7 @@ class AuthService:
             "refresh_token": refresh_token,
             "token_type": "bearer",
             "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            "user_id": user.id  # ДОБАВЛЕНО: user_id в ответе
+            "user_id": user.id,  # ДОБАВЛЕНО: user_id в ответе
         }
 
     def _user_to_dict(self, user) -> dict:
@@ -141,9 +146,10 @@ class AuthService:
             "email": user.email,
             "full_name": user.full_name,
             "phone": user.phone,
-            "role": user.role.value if hasattr(user.role, 'value') else user.role,
+            "role": user.role,
             "is_active": user.is_active,
             "is_verified": user.is_verified,
-            "created_at": user.created_at.isoformat() if user.created_at else None,
-            "last_login": user.last_login.isoformat() if user.last_login else None
+            "is_admin": user.is_admin,
+            "created_at": user.created_at,
+            "last_login": user.last_login,
         }

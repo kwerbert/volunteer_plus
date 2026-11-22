@@ -1,13 +1,5 @@
-"""Общие enum'ы для системы уведомлений.
-
-Используются notification_service (валидация/хранение) и chat_service
-(формирование запросов), а также любыми другими сервисами, которые будут
-слать уведомления. Единый источник правды исключает рассинхрон значений
-между сервисами: если завтра кто-то переименует `CHAT` → `MESSAGE`,
-это сломается на этапе сериализации в одном месте, а не в рантайме при
-получении 422 от notification_service.
-"""
 from enum import Enum
+
 
 class Platform(str, Enum):
     ANDROID = "ANDROID"
@@ -20,6 +12,10 @@ class NotificationType(str, Enum):
     NEW_EVENT = "NEW_EVENT"
     EVENT_REMINDER = "EVENT_REMINDER"
     SYSTEM = "SYSTEM"
+    EVENT_CANCELLED = "EVENT_CANCELLED"
+    NEW_REGISTRATION = "NEW_REGISTRATION"
+    REGISTRATION_CANCELLED = "REGISTRATION_CANCELLED"
+    NEW_ORGANIZER_ADDED = "NEW_ORGANIZER_ADDED"
 
 
 class Priority(str, Enum):

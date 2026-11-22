@@ -1,8 +1,14 @@
 import logging
+
+from app.services.subscription_service.api.schemas import (
+    SubscriptionCheckResponse,
+    SubscriptionUpdate,
+)
 from app.services.subscription_service.db.repository import SubscriptionRepository
-from app.services.subscription_service.api.schemas import SubscriptionUpdate, SubscriptionResponse, \
-    SubscriptionCheckResponse
-from app.services.subscription_service.utils.http_client import verify_organization, verify_user
+from app.services.subscription_service.utils.http_client import (
+    verify_organization,
+    verify_user,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,17 +68,22 @@ class SubscriptionService:
         new_active = data.active if data.active is not None else sub.active
 
         updated = await self.repo.update_role(sub_id, new_role, new_active)
-        await self.repo.log_action(sub.user_id, sub.org_id, "UPDATE", sub_id, f"Role: {new_role}, Active: {new_active}")
+        await self.repo.log_action(
+            sub.user_id,
+            sub.org_id,
+            "UPDATE",
+            sub_id,
+            f"Role: {new_role}, Active: {new_active}",
+        )
         return updated
 
-    async def check_status(self, user_id: int, org_id: int) -> SubscriptionCheckResponse:
+    async def check_status(
+        self, user_id: int, org_id: int
+    ) -> SubscriptionCheckResponse:
         sub = await self.repo.get_by_user_and_org(user_id, org_id)
         if not sub:
             return SubscriptionCheckResponse(is_subscribed=False, active=False)
 
         return SubscriptionCheckResponse(
-            is_subscribed=True,
-            subscription_id=sub.id,
-            active=sub.active,
-            role=sub.role
+            is_subscribed=True, subscription_id=sub.id, active=sub.active, role=sub.role
         )

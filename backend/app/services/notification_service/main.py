@@ -1,15 +1,15 @@
 import logging
-import uvicorn
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.notification_service.api.schemas import HealthResponse
 from datetime import datetime, timezone
-from app.services.notification_service.config import settings
-from app.services.notification_service.db.session import engine, async_session_maker
+
+import uvicorn
+from fastapi import FastAPI
+
 from app.services.notification_service.api.router import router
-from app.services.notification_service.db.models import Base
+from app.services.notification_service.api.schemas import HealthResponse
+from app.services.notification_service.config import settings
 from app.services.notification_service.core.websocket_manager import get_ws_manager
+from app.services.notification_service.db.session import engine
 
 # Логирование
 logging.basicConfig(
@@ -24,27 +24,19 @@ ws_manager = get_ws_manager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup/Shutdown события"""
-    # Startup: создаём таблицы
     logger.info("Starting Notification Service...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables created/verified")
-
+    # Миграции выполняются через Alembic (сервис `migrate` в docker-compose)
     yield
-
-    # Shutdown: закрываем соединения
     logger.info("Shutting down Notification Service...")
     await engine.dispose()
 
 
 # FastAPI app
 app = FastAPI(
-    title="Notification Service",
-    description="Push + WebSocket notifications for Volunteer+",
+    title=settings.SERVICE_NAME,
+    description="Микросервис уведомлений (Push + WebSocket)",
     version="1.0.0",
     lifespan=lifespan,
-    debug=settings.DEBUG
 )
 
 # Include router
@@ -54,11 +46,8 @@ app.include_router(router)
 # Root endpoint
 @app.get("/")
 async def root():
-    return {
-        "service": settings.SERVICE_NAME,
-        "docs": "/docs",
-        "health": "/health"
-    }
+    return {"service": settings.SERVICE_NAME, "docs": "/docs", "health": "/health"}
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -67,6 +56,7 @@ async def health_check():
         service=settings.SERVICE_NAME,
         timestamp=datetime.now(timezone.utc),
     )
+
 
 # Middleware для логирования (опционально)
 # @app.middleware("http")
