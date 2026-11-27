@@ -7,12 +7,18 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 
+enum class UserRole { VOLUNTEER, ORGANIZER, ADMIN }
+
 @HiltViewModel
 class ProfileViewModel @Inject constructor() : ViewModel() {
     val userName = MutableStateFlow("Иван Волонтеров")
     val userEmail = MutableStateFlow("ivan@example.com")
     val totalHours = MutableStateFlow("124 часа")
     val organizationsCount = MutableStateFlow(3)
+    
+    // Роль пользователя
+    val currentRole = MutableStateFlow(UserRole.VOLUNTEER)
+    val isAdmin = MutableStateFlow(false) // Флаг админа (по плану одноклассника)
 
     val registeredEvents = MutableStateFlow(
         listOf(
@@ -43,8 +49,12 @@ class ProfileViewModel @Inject constructor() : ViewModel() {
         )
     )
 
-    // Метод отписки
     fun unsubscribe(orgId: Long) {
         mySubscriptions.value = mySubscriptions.value.filter { it.id != orgId }
+    }
+    
+    // Имитация подачи заявки на организатора и одобрения админом
+    fun becomeOrganizer() {
+        currentRole.value = UserRole.ORGANIZER
     }
 }

@@ -26,12 +26,9 @@ fun OrganizationsScreen(
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val organizations by viewModel.filteredOrganizations.collectAsState()
-    
-    // Состояние для выбранной организации (если не null — показываем BottomSheet)
     var selectedOrg by remember { mutableStateOf<OrganizationItem?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Поиск
+    Column(modifier = Modifier.fillMaxSize().imePadding()) { // imePadding для клавиатуры
         OutlinedTextField(
             value = searchQuery,
             onValueChange = viewModel::onSearchQueryChange,
@@ -56,7 +53,7 @@ fun OrganizationsScreen(
                 items(organizations, key = { it.id }) { org ->
                     OrganizationCard(
                         org = org,
-                        onCardClick = { selectedOrg = org }, // При клике на карточку открываем детали
+                        onCardClick = { selectedOrg = org },
                         onSubscribeClick = { viewModel.toggleSubscription(org.id) },
                         onWriteClick = { onWriteClick(org.name) }
                     )
@@ -65,19 +62,17 @@ fun OrganizationsScreen(
         }
     }
 
-    // Показываем BottomSheet, если организация выбрана
     if (selectedOrg != null) {
         OrganizationDetailsSheet(
             org = selectedOrg!!,
             onDismiss = { selectedOrg = null },
             onSubscribeClick = { 
                 viewModel.toggleSubscription(selectedOrg!!.id) 
-                // Обновляем локальный стейт, чтобы кнопка сразу поменяла цвет в шторке
                 selectedOrg = selectedOrg!!.copy(isSubscribed = !selectedOrg!!.isSubscribed)
             },
             onWriteClick = { 
                 onWriteClick(selectedOrg!!.name)
-                selectedOrg = null // Закрываем шторку после перехода в чат
+                selectedOrg = null
             }
         )
     }
@@ -91,9 +86,7 @@ fun OrganizationCard(
     onWriteClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCardClick() }, // Делаем всю карточку кликабельной
+        modifier = Modifier.fillMaxWidth().clickable { onCardClick() },
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -109,16 +102,11 @@ fun OrganizationCard(
                     Text(text = org.rating.toString(), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = org.description, fontSize = 14.sp, color = Color.Gray, maxLines = 2)
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Кнопки (клик по ним не вызывает onCardClick благодаря обработке событий Compose)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = onSubscribeClick,
                     modifier = Modifier.weight(1f),

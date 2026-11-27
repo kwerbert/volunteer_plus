@@ -26,7 +26,6 @@ fun MainAppScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     var activeChat by remember { mutableStateOf<ChatItem?>(null) }
 
-    // Определяем заголовок верхней панели
     val topBarTitle = when {
         activeChat != null -> activeChat!!.title
         selectedTab == 0 -> "Главная"
@@ -36,10 +35,16 @@ fun MainAppScreen(
         else -> "Волонтер+"
     }
 
+    // Единая функция для открытия чата с организацией
+    val openChatWithOrg = { orgName: String ->
+        val newChat = chatViewModel.createChat(orgName)
+        activeChat = newChat
+        selectedTab = 2 // Переключаем на вкладку чатов
+    }
+
     Scaffold(
         topBar = {
             if (activeChat != null) {
-                // Верхняя панель для чата (с кнопкой Назад)
                 TopAppBar(
                     title = { Text(topBarTitle, color = Color.White) },
                     navigationIcon = {
@@ -50,7 +55,6 @@ fun MainAppScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF6200EE))
                 )
             } else {
-                // Глобальная верхняя панель с динамическим заголовком
                 TopAppBar(
                     title = { Text(topBarTitle, color = Color.White) },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF6200EE)),
@@ -85,19 +89,13 @@ fun MainAppScreen(
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.padding(padding)) {
+        Box(modifier = Modifier.padding(padding).imePadding()) {
             if (activeChat != null) {
                 ChatDetailScreen()
             } else {
                 when (selectedTab) {
-                    0 -> HomeScreen()
-                    1 -> OrganizationsScreen(
-                        onWriteClick = { orgName ->
-                            val newChat = chatViewModel.createChat(orgName)
-                            selectedTab = 2
-                            activeChat = newChat
-                        }
-                    )
+                    0 -> HomeScreen(onWriteClick = openChatWithOrg) // Передаем функцию
+                    1 -> OrganizationsScreen(onWriteClick = openChatWithOrg)
                     2 -> ChatListScreen(
                         viewModel = chatViewModel,
                         onChatClick = { chat -> activeChat = chat }

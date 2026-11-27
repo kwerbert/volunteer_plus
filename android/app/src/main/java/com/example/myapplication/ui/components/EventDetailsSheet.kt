@@ -1,6 +1,5 @@
 package com.example.myapplication.ui.components
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -10,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,10 +19,10 @@ import com.example.myapplication.data.models.EventItem
 fun EventDetailsSheet(
     event: EventItem,
     onDismiss: () -> Unit,
-    actionButtonText: String? = "Зарегистрироваться", // По умолчанию - регистрация
+    onWriteClick: (String) -> Unit, // <-- Добавили колбэк для перехода в чат
+    actionButtonText: String? = "Зарегистрироваться",
     onActionClick: (() -> Unit)? = null
 ) {
-    val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
@@ -71,7 +69,7 @@ fun EventDetailsSheet(
                         }
                     }
                     OutlinedButton(onClick = { 
-                        Toast.makeText(context, "Переход в чат к организации", Toast.LENGTH_SHORT).show() 
+                        onWriteClick(event.organization.name) // <-- Вызываем колбэк
                     }) {
                         Text("Написать")
                     }
@@ -91,16 +89,13 @@ fun EventDetailsSheet(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Показываем кнопку, только если передан текст
             if (actionButtonText != null) {
                 Button(
                     onClick = { 
                         onActionClick?.invoke()
                         onDismiss()
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (actionButtonText == "Отказаться") Color.Red else Color(0xFF6200EE)

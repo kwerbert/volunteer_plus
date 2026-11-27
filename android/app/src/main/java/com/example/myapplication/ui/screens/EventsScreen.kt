@@ -63,7 +63,8 @@ fun EventsScreen(
     if (selectedEvent != null) {
         EventDetailsSheet(
             event = selectedEvent!!,
-            onDismiss = { selectedEvent = null }
+            onDismiss = { selectedEvent = null },
+            onWriteClick = { /* Пока пусто */ }
         )
     }
 }

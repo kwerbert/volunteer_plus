@@ -25,6 +25,7 @@ import com.example.myapplication.ui.components.EventDetailsSheet
 import com.example.myapplication.ui.components.OrganizationDetailsSheet
 import com.example.myapplication.ui.viewmodels.OrganizationItem
 import com.example.myapplication.ui.viewmodels.ProfileViewModel
+import com.example.myapplication.ui.viewmodels.UserRole
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,13 +39,14 @@ fun ProfileScreen(
     val registeredEvents by viewModel.registeredEvents.collectAsState()
     val pastEvents by viewModel.pastEvents.collectAsState()
     val mySubscriptions by viewModel.mySubscriptions.collectAsState()
+    val role by viewModel.currentRole.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
-    
-    // Состояния для шторок
     var selectedEvent by remember { mutableStateOf<EventItem?>(null) }
     var showSubscriptionsSheet by remember { mutableStateOf(false) }
     var selectedSubscription by remember { mutableStateOf<OrganizationItem?>(null) }
+    
+    var showOrganizerSheet by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -61,7 +63,39 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(16.dp))
             Text(text = name, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(text = email, fontSize = 14.sp, color = Color.Gray)
+            
+            // Бейдж роли
+            if (role == UserRole.ORGANIZER) {
+                Surface(
+                    color = Color(0xFF6200EE),
+                    shape = CircleShape,
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text(
+                        text = "Организатор",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            
             Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        // --- Кнопка стать организатором (если волонтер) ---
+        if (role == UserRole.VOLUNTEER) {
+            item {
+                Button(
+                    onClick = { showOrganizerSheet = true },
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                ) {
+                    Icon(Icons.Default.Star, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Стать организатором")
+                }
+            }
         }
 
         // --- Статистика ---
@@ -137,41 +171,47 @@ fun ProfileScreen(
         }
     }
 
-    // Детали мероприятия
     if (selectedEvent != null) {
         val actionText = if (selectedTab == 0) "Отказаться" else null
         EventDetailsSheet(
             event = selectedEvent!!, 
             onDismiss = { selectedEvent = null },
+            onWriteClick = { /* Пока пусто */ },
             actionButtonText = actionText,
             onActionClick = { /* Логика отмены */ }
         )
     }
 
-    // Список подписок (шторка)
     if (showSubscriptionsSheet) {
         MySubscriptionsSheet(
             subscriptions = mySubscriptions,
             onDismiss = { showSubscriptionsSheet = false },
             onOrgClick = { org ->
-                showSubscriptionsSheet = false // Закрываем список
-                selectedSubscription = org     // Открываем детали
+                showSubscriptionsSheet = false
+                selectedSubscription = org
             }
         )
     }
 
-    // Детали выбранной подписки (вторая шторка поверх первой)
     if (selectedSubscription != null) {
         OrganizationDetailsSheet(
             org = selectedSubscription!!,
             onDismiss = { selectedSubscription = null },
             onSubscribeClick = {
                 viewModel.unsubscribe(selectedSubscription!!.id)
-                selectedSubscription = null // Закрываем после отписки
+                selectedSubscription = null
             },
-            onWriteClick = { 
-                // Логика перехода в чат
-                selectedSubscription = null 
+            onWriteClick = { selectedSubscription = null }
+        )
+    }
+    
+    // Шторка заявки на организатора
+    if (showOrganizerSheet) {
+        OrganizerApplicationSheet(
+            onDismiss = { showOrganizerSheet = false },
+            onSubmit = {
+                viewModel.becomeOrganizer()
+                showOrganizerSheet = false
             }
         )
     }
@@ -203,7 +243,6 @@ fun SettingsRow(text: String, onClick: () -> Unit) {
     }
 }
 
-// Шторка с подписками
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MySubscriptionsSheet(
@@ -216,16 +255,12 @@ fun MySubscriptionsSheet(
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp).padding(bottom = 32.dp)) {
             Text("Мои подписки", fontSize = 22.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
-            
             if (subscriptions.isEmpty()) {
                 Text("Вы пока ни на кого не подписаны", color = Color.Gray)
             } else {
                 subscriptions.forEach { org ->
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clickable { onOrgClick(org) }, // Делаем карточку кликабельной
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOrgClick(org) },
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9))
                     ) {
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -247,6 +282,34 @@ fun MySubscriptionsSheet(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OrganizerApplicationSheet(
+    onDismiss: () -> Unit,
+    onSubmit: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(modifier = Modifier.fillMaxWidth().padding(24.dp).padding(bottom = 16.dp)) {
+            Text("Стать организатором", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                "Чтобы создавать свои мероприятия и управлять волонтерами, вам нужно подать заявку. Администратор платформы рассмотрит её в ближайшее время.",
+                fontSize = 15.sp,
+                color = Color.DarkGray
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = onSubmit,
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) {
+                Text("Подать заявку (имитация)")
             }
         }
     }

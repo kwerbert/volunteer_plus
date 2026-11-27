@@ -20,6 +20,7 @@ import com.example.myapplication.ui.viewmodels.HomeViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
+    onWriteClick: (String) -> Unit, // <-- Добавили параметр
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val events by viewModel.events.collectAsState()
@@ -60,11 +61,14 @@ fun HomeScreen(
         }
     }
 
-    // Показываем BottomSheet, если выбрано мероприятие
     if (selectedEvent != null) {
         EventDetailsSheet(
             event = selectedEvent!!,
-            onDismiss = { selectedEvent = null }
+            onDismiss = { selectedEvent = null },
+            onWriteClick = { orgName ->
+                selectedEvent = null // Закрываем карточку
+                onWriteClick(orgName) // Переходим в чат
+            }
         )
     }
 }
@@ -72,9 +76,7 @@ fun HomeScreen(
 @Composable
 fun HomeEventCard(event: EventItem, onClick: () -> Unit) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
