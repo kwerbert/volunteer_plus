@@ -21,5 +21,13 @@ data class EventItem(
     val distanceKm: Double? = null,
     val maxParticipants: Int? = null,
     val registeredCount: Int? = null,
-    val qrSecret: String? = null
+    val qrSecret: String? = null,
+    
+    // Поля для организатора
+    val whatToDo: String? = null,
+    val volunteerRequirements: String? = null,
+    val requiredVolunteers: Int? = null,
+    val additionalInfo: String? = null,
+    val hoursReward: Int? = null,
+    val isPast: Boolean = false // <-- Флаг: мероприятие уже прошло
 )

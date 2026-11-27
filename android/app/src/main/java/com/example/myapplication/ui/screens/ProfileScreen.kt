@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -20,8 +19,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.myapplication.data.models.EventItem
-import com.example.myapplication.ui.components.EventDetailsSheet
 import com.example.myapplication.ui.components.OrganizationDetailsSheet
 import com.example.myapplication.ui.viewmodels.OrganizationItem
 import com.example.myapplication.ui.viewmodels.ProfileViewModel
@@ -36,17 +33,13 @@ fun ProfileScreen(
     val email by viewModel.userEmail.collectAsState()
     val hours by viewModel.totalHours.collectAsState()
     val orgs by viewModel.organizationsCount.collectAsState()
-    val registeredEvents by viewModel.registeredEvents.collectAsState()
-    val pastEvents by viewModel.pastEvents.collectAsState()
     val mySubscriptions by viewModel.mySubscriptions.collectAsState()
     val role by viewModel.currentRole.collectAsState()
+    val myOrgName by viewModel.myOrganizationName.collectAsState()
+    val myOrgDesc by viewModel.myOrganizationDesc.collectAsState()
 
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var selectedEvent by remember { mutableStateOf<EventItem?>(null) }
     var showSubscriptionsSheet by remember { mutableStateOf(false) }
     var selectedSubscription by remember { mutableStateOf<OrganizationItem?>(null) }
-    
-    var showOrganizerSheet by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -64,96 +57,83 @@ fun ProfileScreen(
             Text(text = name, fontSize = 24.sp, fontWeight = FontWeight.Bold)
             Text(text = email, fontSize = 14.sp, color = Color.Gray)
             
-            // Бейдж роли
-            if (role == UserRole.ORGANIZER) {
-                Surface(
-                    color = Color(0xFF6200EE),
-                    shape = CircleShape,
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Text(
-                        text = "Организатор",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // КРАСИВЫЙ ПЕРЕКЛЮЧАТЕЛЬ РОЛИ
+            SingleChoiceSegmentedButtonRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            ) {
+                SegmentedButton(
+                    selected = role == UserRole.VOLUNTEER,
+                    onClick = { viewModel.switchRole(UserRole.VOLUNTEER) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = Color(0xFF6200EE),
+                        activeContentColor = Color.White
                     )
+                ) {
+                    Text("Волонтер")
+                }
+                SegmentedButton(
+                    selected = role == UserRole.ORGANIZER,
+                    onClick = { viewModel.switchRole(UserRole.ORGANIZER) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = Color(0xFF6200EE),
+                        activeContentColor = Color.White
+                    )
+                ) {
+                    Text("Организатор")
                 }
             }
-            
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // --- Кнопка стать организатором (если волонтер) ---
-        if (role == UserRole.VOLUNTEER) {
+        // --- Блок для ОРГАНИЗАТОРА ---
+        if (role == UserRole.ORGANIZER) {
             item {
-                Button(
-                    onClick = { showOrganizerSheet = true },
+                Card(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E5F5))
                 ) {
-                    Icon(Icons.Default.Star, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Стать организатором")
-                }
-            }
-        }
-
-        // --- Статистика ---
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Моя статистика", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = hours, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EE))
-                            Text(text = "Всего часов", fontSize = 12.sp, color = Color.Gray)
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = orgs.toString(), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EE))
-                            Text(text = "Организаций", fontSize = 12.sp, color = Color.Gray)
-                        }
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Моя организация", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EE))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = myOrgName, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text(text = myOrgDesc, fontSize = 14.sp, color = Color.DarkGray)
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-
-        // --- Заголовок и Табы мероприятий ---
-        item {
-            Text(
-                text = "Мои мероприятия", fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            TabRow(selectedTabIndex = selectedTab, containerColor = Color.White, contentColor = Color(0xFF6200EE)) {
-                Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Записан (${registeredEvents.size})") })
-                Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Прошел (${pastEvents.size})") })
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        val currentList = if (selectedTab == 0) registeredEvents else pastEvents
-        
-        if (currentList.isEmpty()) {
-            item {
-                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text("Здесь пока пусто", color = Color.Gray)
-                }
-            }
         } else {
-            items(currentList) { event ->
-                ProfileEventCard(event = event, onClick = { selectedEvent = event })
+            // --- Статистика для ВОЛОНТЕРА ---
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Моя статистика", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(text = hours, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EE))
+                                Text(text = "Всего часов", fontSize = 12.sp, color = Color.Gray)
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(text = orgs.toString(), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6200EE))
+                                Text(text = "Организаций", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
 
         // --- Настройки ---
         item {
-            Spacer(modifier = Modifier.height(24.dp))
             Text(
                 text = "Настройки", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Start
@@ -163,23 +143,14 @@ fun ProfileScreen(
                 Column {
                     SettingsRow(text = "Редактировать профиль", onClick = {})
                     HorizontalDivider()
-                    SettingsRow(text = "Мои подписки", onClick = { showSubscriptionsSheet = true })
-                    HorizontalDivider()
+                    if (role == UserRole.VOLUNTEER) {
+                        SettingsRow(text = "Мои подписки", onClick = { showSubscriptionsSheet = true })
+                        HorizontalDivider()
+                    }
                     SettingsRow(text = "Уведомления", onClick = {})
                 }
             }
         }
-    }
-
-    if (selectedEvent != null) {
-        val actionText = if (selectedTab == 0) "Отказаться" else null
-        EventDetailsSheet(
-            event = selectedEvent!!, 
-            onDismiss = { selectedEvent = null },
-            onWriteClick = { /* Пока пусто */ },
-            actionButtonText = actionText,
-            onActionClick = { /* Логика отмены */ }
-        )
     }
 
     if (showSubscriptionsSheet) {
@@ -192,7 +163,7 @@ fun ProfileScreen(
             }
         )
     }
-
+    
     if (selectedSubscription != null) {
         OrganizationDetailsSheet(
             org = selectedSubscription!!,
@@ -203,33 +174,6 @@ fun ProfileScreen(
             },
             onWriteClick = { selectedSubscription = null }
         )
-    }
-    
-    // Шторка заявки на организатора
-    if (showOrganizerSheet) {
-        OrganizerApplicationSheet(
-            onDismiss = { showOrganizerSheet = false },
-            onSubmit = {
-                viewModel.becomeOrganizer()
-                showOrganizerSheet = false
-            }
-        )
-    }
-}
-
-@Composable
-fun ProfileEventCard(event: EventItem, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(text = event.title, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text(text = event.startTime, fontSize = 12.sp, color = Color(0xFF6200EE))
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = event.descriptionPreview ?: "", fontSize = 13.sp, color = Color.Gray, maxLines = 2)
-        }
     }
 }
 
@@ -282,34 +226,6 @@ fun MySubscriptionsSheet(
                         }
                     }
                 }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun OrganizerApplicationSheet(
-    onDismiss: () -> Unit,
-    onSubmit: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
-        Column(modifier = Modifier.fillMaxWidth().padding(24.dp).padding(bottom = 16.dp)) {
-            Text("Стать организатором", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                "Чтобы создавать свои мероприятия и управлять волонтерами, вам нужно подать заявку. Администратор платформы рассмотрит её в ближайшее время.",
-                fontSize = 15.sp,
-                color = Color.DarkGray
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(
-                onClick = onSubmit,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-            ) {
-                Text("Подать заявку (имитация)")
             }
         }
     }

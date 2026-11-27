@@ -16,9 +16,54 @@ class ProfileViewModel @Inject constructor() : ViewModel() {
     val totalHours = MutableStateFlow("124 часа")
     val organizationsCount = MutableStateFlow(3)
     
-    // Роль пользователя
     val currentRole = MutableStateFlow(UserRole.VOLUNTEER)
-    val isAdmin = MutableStateFlow(false) // Флаг админа (по плану одноклассника)
+    val isAdmin = MutableStateFlow(false)
+    val isOrganizerSubScreenOpen = MutableStateFlow(false)
+
+    val myOrganizationName = MutableStateFlow("Эко-Движение")
+    val myOrganizationDesc = MutableStateFlow("Помощь природе и городским паркам")
+
+    val organizedEvents = MutableStateFlow(
+        listOf(
+            EventItem(
+                id = 201L, title = "Уборка парка Горького",
+                organization = OrganizationInfo(1L, "Эко-Движение"),
+                startTime = "15 мая 2026, 10:00",
+                descriptionPreview = "Ежегодная акция по уборке парка.",
+                whatToDo = "Сбор мусора, покраска лавочек, уборка листвы.",
+                volunteerRequirements = "Возраст 18+, удобная обувь, наличие перчаток.",
+                requiredVolunteers = 20,
+                additionalInfo = "Сбор у главного входа в 09:45. С собой взять воду и перекус.",
+                hoursReward = 4,
+                isPast = false
+            ),
+            EventItem(
+                id = 202L, title = "Высадка деревьев",
+                organization = OrganizationInfo(1L, "Эко-Движение"),
+                startTime = "25 мая 2026, 09:00",
+                descriptionPreview = "Высадим 50 саженцев дуба.",
+                whatToDo = "Копка ям, посадка саженцев, полив.",
+                volunteerRequirements = "Физическая подготовка, инвентарь предоставляется.",
+                requiredVolunteers = 15,
+                additionalInfo = "Инвентарь будет ждать на месте. Одежда должна быть непромокаемой.",
+                hoursReward = 5,
+                isPast = false
+            ),
+            // ПРОШЕДШЕЕ МЕРОПРИЯТИЕ (для теста вкладки)
+            EventItem(
+                id = 203L, title = "Сбор макулатуры",
+                organization = OrganizationInfo(1L, "Эко-Движение"),
+                startTime = "10 апреля 2026, 12:00",
+                descriptionPreview = "Собрали 500 кг бумаги. Спасибо всем участникам!",
+                whatToDo = "Сортировка и взвешивание бумаги.",
+                volunteerRequirements = "Ответственность.",
+                requiredVolunteers = 10,
+                additionalInfo = "Мероприятие завершено.",
+                hoursReward = 3,
+                isPast = true
+            )
+        )
+    )
 
     val registeredEvents = MutableStateFlow(
         listOf(
@@ -26,7 +71,7 @@ class ProfileViewModel @Inject constructor() : ViewModel() {
                 id = 101L, title = "Уборка парка Горького",
                 organization = OrganizationInfo(1L, "Эко-Движение"),
                 startTime = "15 мая 2026, 10:00",
-                descriptionPreview = "Не забудьте взять перчатки и хорошее настроение!"
+                descriptionPreview = "Не забудьте взять перчатки!"
             )
         )
     )
@@ -37,7 +82,7 @@ class ProfileViewModel @Inject constructor() : ViewModel() {
                 id = 103L, title = "Сбор макулатуры",
                 organization = OrganizationInfo(3L, "Зеленый мир"),
                 startTime = "10 апреля 2026",
-                descriptionPreview = "Собрали 500 кг бумаги. Спасибо за участие!"
+                descriptionPreview = "Собрали 500 кг бумаги. Спасибо!"
             )
         )
     )
@@ -53,8 +98,17 @@ class ProfileViewModel @Inject constructor() : ViewModel() {
         mySubscriptions.value = mySubscriptions.value.filter { it.id != orgId }
     }
     
-    // Имитация подачи заявки на организатора и одобрения админом
-    fun becomeOrganizer() {
-        currentRole.value = UserRole.ORGANIZER
+    fun switchRole(role: UserRole) {
+        currentRole.value = role
+    }
+
+    fun updateEvent(updatedEvent: EventItem) {
+        organizedEvents.value = organizedEvents.value.map { 
+            if (it.id == updatedEvent.id) updatedEvent else it 
+        }
+    }
+
+    fun addEvent(newEvent: EventItem) {
+        organizedEvents.value = listOf(newEvent) + organizedEvents.value
     }
 }
