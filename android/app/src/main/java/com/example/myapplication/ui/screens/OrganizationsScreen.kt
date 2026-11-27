@@ -1,6 +1,6 @@
 package com.example.myapplication.ui.screens
 
-import androidx.compose.foundation.clickable
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,26 +11,28 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.myapplication.ui.components.OrganizationDetailsSheet
 import com.example.myapplication.ui.viewmodels.OrganizationItem
 import com.example.myapplication.ui.viewmodels.OrganizationViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrganizationsScreen(
-    onWriteClick: (String) -> Unit,
     viewModel: OrganizationViewModel = hiltViewModel()
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val organizations by viewModel.filteredOrganizations.collectAsState()
-    
-    // Состояние для выбранной организации (если не null — показываем BottomSheet)
-    var selectedOrg by remember { mutableStateOf<OrganizationItem?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = { Text("Организации", color = Color.White) },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF6200EE))
+        )
+
         // Поиск
         OutlinedTextField(
             value = searchQuery,
@@ -43,6 +45,7 @@ fun OrganizationsScreen(
             shape = MaterialTheme.shapes.medium
         )
 
+        // Список
         if (organizations.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Ничего не найдено", color = Color.Gray)
@@ -56,47 +59,27 @@ fun OrganizationsScreen(
                 items(organizations, key = { it.id }) { org ->
                     OrganizationCard(
                         org = org,
-                        onCardClick = { selectedOrg = org }, // При клике на карточку открываем детали
-                        onSubscribeClick = { viewModel.toggleSubscription(org.id) },
-                        onWriteClick = { onWriteClick(org.name) }
+                        onSubscribeClick = { viewModel.toggleSubscription(org.id) }
                     )
                 }
             }
         }
-    }
-
-    // Показываем BottomSheet, если организация выбрана
-    if (selectedOrg != null) {
-        OrganizationDetailsSheet(
-            org = selectedOrg!!,
-            onDismiss = { selectedOrg = null },
-            onSubscribeClick = { 
-                viewModel.toggleSubscription(selectedOrg!!.id) 
-                // Обновляем локальный стейт, чтобы кнопка сразу поменяла цвет в шторке
-                selectedOrg = selectedOrg!!.copy(isSubscribed = !selectedOrg!!.isSubscribed)
-            },
-            onWriteClick = { 
-                onWriteClick(selectedOrg!!.name)
-                selectedOrg = null // Закрываем шторку после перехода в чат
-            }
-        )
     }
 }
 
 @Composable
 fun OrganizationCard(
     org: OrganizationItem,
-    onCardClick: () -> Unit,
-    onSubscribeClick: () -> Unit,
-    onWriteClick: () -> Unit
+    onSubscribeClick: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCardClick() }, // Делаем всю карточку кликабельной
+        modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // Название и рейтинг
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -111,10 +94,11 @@ fun OrganizationCard(
             }
             
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = org.description, fontSize = 14.sp, color = Color.Gray, maxLines = 2)
+            Text(text = org.description, fontSize = 14.sp, color = Color.Gray)
+            
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Кнопки (клик по ним не вызывает onCardClick благодаря обработке событий Compose)
+            // Кнопки
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -131,7 +115,9 @@ fun OrganizationCard(
                 }
 
                 OutlinedButton(
-                    onClick = onWriteClick,
+                    onClick = { 
+                        Toast.makeText(context, "Чат с представителем ${org.name} открыт (в разработке)", Toast.LENGTH_SHORT).show()
+                    },
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Написать")

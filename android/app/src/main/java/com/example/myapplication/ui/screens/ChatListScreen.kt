@@ -21,47 +21,63 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.myapplication.ui.viewmodels.ChatItem
 import com.example.myapplication.ui.viewmodels.ChatViewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(
-    onChatClick: (ChatItem) -> Unit,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val activeChats by viewModel.activeChats.collectAsState()
     val pastChats by viewModel.pastChats.collectAsState()
+    
+    var selectedChat by remember { mutableStateOf<ChatItem?>(null) }
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = Color.White,
-            contentColor = Color(0xFF6200EE)
-        ) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = { Text("Актуальные") }
+    if (selectedChat != null) {
+        // Если чат выбран, показываем экран переписки
+        ChatDetailScreen(
+            chatTitle = selectedChat!!.title,
+            onBackClick = { selectedChat = null }
+        )
+    } else {
+        // Иначе показываем список чатов с табами
+        Column(modifier = Modifier.fillMaxSize()) {
+            TopAppBar(
+                title = { Text("Сообщения", color = Color.White) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF6200EE))
             )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = { Text("Прошедшие") }
-            )
-        }
-        
-        val currentList = if (selectedTab == 0) activeChats else pastChats
 
-        if (currentList.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = if (selectedTab == 0) "У вас пока нет активных чатов" else "Нет прошедших чатов",
-                    color = Color.Gray
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.White,
+                contentColor = Color(0xFF6200EE)
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Актуальные") }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Прошедшие") }
                 )
             }
-        } else {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(currentList, key = { it.id }) { chat ->
-                    ChatRow(chat = chat, onClick = { onChatClick(chat) })
-                    HorizontalDivider()
+            
+            val currentList = if (selectedTab == 0) activeChats else pastChats
+
+            if (currentList.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (selectedTab == 0) "У вас пока нет активных чатов" else "Нет прошедших чатов",
+                        color = Color.Gray
+                    )
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(currentList, key = { it.id }) { chat ->
+                        ChatRow(chat = chat, onClick = { selectedChat = chat })
+                        HorizontalDivider()
+                    }
                 }
             }
         }
@@ -77,6 +93,7 @@ fun ChatRow(chat: ChatItem, onClick: () -> Unit) {
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Аватарка
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -89,6 +106,7 @@ fun ChatRow(chat: ChatItem, onClick: () -> Unit) {
 
         Spacer(modifier = Modifier.width(16.dp))
 
+        // Текст
         Column(modifier = Modifier.weight(1f)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

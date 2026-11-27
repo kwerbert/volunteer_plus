@@ -20,9 +20,7 @@ import com.example.myapplication.data.models.EventItem
 @Composable
 fun EventDetailsSheet(
     event: EventItem,
-    onDismiss: () -> Unit,
-    actionButtonText: String? = "Зарегистрироваться", // По умолчанию - регистрация
-    onActionClick: (() -> Unit)? = null
+    onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -38,6 +36,7 @@ fun EventDetailsSheet(
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp)
         ) {
+            // Заголовок
             Text(
                 text = event.title,
                 fontSize = 24.sp,
@@ -46,6 +45,7 @@ fun EventDetailsSheet(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Время
             Text(
                 text = "📅 ${event.startTime}",
                 fontSize = 16.sp,
@@ -54,6 +54,7 @@ fun EventDetailsSheet(
             )
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Блок организации
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
@@ -80,6 +81,7 @@ fun EventDetailsSheet(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Описание
             Text(text = "Описание", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -91,23 +93,19 @@ fun EventDetailsSheet(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Показываем кнопку, только если передан текст
-            if (actionButtonText != null) {
-                Button(
-                    onClick = { 
-                        onActionClick?.invoke()
-                        onDismiss()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (actionButtonText == "Отказаться") Color.Red else Color(0xFF6200EE)
-                    )
-                ) {
-                    Text(actionButtonText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                }
+            // Кнопка регистрации
+            Button(
+                onClick = { 
+                    Toast.makeText(context, "Вы записались на мероприятие!", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6200EE))
+            ) {
+                Text("Зарегистрироваться", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
